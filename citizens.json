@@ -1,0 +1,802 @@
+[
+{
+"id": 1,
+"type": "Female Student",
+"age": 19,
+"monthly_income": 5000,
+"current_transport": "Metro",
+"commute_distance_km": 12
+},
+{
+"id": 2,
+"type": "Female Student",
+"age": 21,
+"monthly_income": 4000,
+"current_transport": "Bus",
+"commute_distance_km": 8
+},
+{
+"id": 3,
+"type": "Female Student",
+"age": 20,
+"monthly_income": 6000,
+"current_transport": "Metro",
+"commute_distance_km": 15
+},
+{
+"id": 4,
+"type": "Female Student",
+"age": 18,
+"monthly_income": 3000,
+"current_transport": "Walking",
+"commute_distance_km": 2
+},
+{
+"id": 5,
+"type": "Female Student",
+"age": 22,
+"monthly_income": 7000,
+"current_transport": "Bus",
+"commute_distance_km": 10
+},
+{
+"id": 6,
+"type": "Female Student",
+"age": 19,
+"monthly_income": 4500,
+"current_transport": "Metro",
+"commute_distance_km": 14
+},
+{
+"id": 7,
+"type": "Female Student",
+"age": 20,
+"monthly_income": 5500,
+"current_transport": "Bus",
+"commute_distance_km": 9
+},
+{
+"id": 8,
+"type": "Female Student",
+"age": 21,
+"monthly_income": 6500,
+"current_transport": "Metro",
+"commute_distance_km": 18
+},
+{
+"id": 9,
+"type": "Female Student",
+"age": 18,
+"monthly_income": 3500,
+"current_transport": "Walking",
+"commute_distance_km": 3
+},
+{
+"id": 10,
+"type": "Female Student",
+"age": 23,
+"monthly_income": 8000,
+"current_transport": "Bus",
+"commute_distance_km": 11
+},
+{
+"id": 11,
+"type": "Female Student",
+"age": 20,
+"monthly_income": 5000,
+"current_transport": "Metro",
+"commute_distance_km": 13
+},
+{
+"id": 12,
+"type": "Female Student",
+"age": 19,
+"monthly_income": 4000,
+"current_transport": "Bus",
+"commute_distance_km": 7
+},
+{
+"id": 13,
+"type": "Female Student",
+"age": 22,
+"monthly_income": 7000,
+"current_transport": "Metro",
+"commute_distance_km": 16
+},
+{
+"id": 14,
+"type": "Female Student",
+"age": 21,
+"monthly_income": 6000,
+"current_transport": "Bus",
+"commute_distance_km": 10
+},
+{
+"id": 15,
+"type": "Female Student",
+"age": 18,
+"monthly_income": 3000,
+"current_transport": "Walking",
+"commute_distance_km": 2
+},
+{
+"id": 16,
+"type": "Female Student",
+"age": 20,
+"monthly_income": 5500,
+"current_transport": "Metro",
+"commute_distance_km": 12
+},
+{
+"id": 17,
+"type": "Female Student",
+"age": 23,
+"monthly_income": 8500,
+"current_transport": "Bus",
+"commute_distance_km": 14
+},
+{
+"id": 18,
+"type": "Female Student",
+"age": 19,
+"monthly_income": 4500,
+"current_transport": "Metro",
+"commute_distance_km": 9
+},
+{
+"id": 19,
+"type": "Female Student",
+"age": 21,
+"monthly_income": 6500,
+"current_transport": "Bus",
+"commute_distance_km": 11
+},
+{
+"id": 20,
+"type": "Female Student",
+"age": 22,
+"monthly_income": 7000,
+"current_transport": "Metro",
+"commute_distance_km": 17
+},
+{
+"id": 21,
+"type": "Female Office Worker",
+"age": 25,
+"monthly_income": 35000,
+"current_transport": "Metro",
+"commute_distance_km": 18
+},
+{
+"id": 22,
+"type": "Female Office Worker",
+"age": 28,
+"monthly_income": 42000,
+"current_transport": "Cab",
+"commute_distance_km": 15
+},
+{
+"id": 23,
+"type": "Female Office Worker",
+"age": 30,
+"monthly_income": 50000,
+"current_transport": "Metro",
+"commute_distance_km": 22
+},
+{
+"id": 24,
+"type": "Female Office Worker",
+"age": 27,
+"monthly_income": 40000,
+"current_transport": "Bus",
+"commute_distance_km": 12
+},
+{
+"id": 25,
+"type": "Female Office Worker",
+"age": 32,
+"monthly_income": 60000,
+"current_transport": "Car",
+"commute_distance_km": 20
+},
+{
+"id": 26,
+"type": "Female Office Worker",
+"age": 26,
+"monthly_income": 38000,
+"current_transport": "Metro",
+"commute_distance_km": 16
+},
+{
+"id": 27,
+"type": "Female Office Worker",
+"age": 29,
+"monthly_income": 47000,
+"current_transport": "Metro",
+"commute_distance_km": 19
+},
+{
+"id": 28,
+"type": "Female Office Worker",
+"age": 31,
+"monthly_income": 55000,
+"current_transport": "Cab",
+"commute_distance_km": 14
+},
+{
+"id": 29,
+"type": "Female Office Worker",
+"age": 24,
+"monthly_income": 33000,
+"current_transport": "Bus",
+"commute_distance_km": 10
+},
+{
+"id": 30,
+"type": "Female Office Worker",
+"age": 35,
+"monthly_income": 70000,
+"current_transport": "Car",
+"commute_distance_km": 25
+},
+{
+"id": 31,
+"type": "Female Office Worker",
+"age": 28,
+"monthly_income": 45000,
+"current_transport": "Metro",
+"commute_distance_km": 17
+},
+{
+"id": 32,
+"type": "Female Office Worker",
+"age": 26,
+"monthly_income": 39000,
+"current_transport": "Metro",
+"commute_distance_km": 13
+},
+{
+"id": 33,
+"type": "Female Office Worker",
+"age": 33,
+"monthly_income": 62000,
+"current_transport": "Car",
+"commute_distance_km": 21
+},
+{
+"id": 34,
+"type": "Female Office Worker",
+"age": 29,
+"monthly_income": 48000,
+"current_transport": "Cab",
+"commute_distance_km": 18
+},
+{
+"id": 35,
+"type": "Female Office Worker",
+"age": 27,
+"monthly_income": 41000,
+"current_transport": "Bus",
+"commute_distance_km": 11
+},
+{
+"id": 36,
+"type": "Female Office Worker",
+"age": 30,
+"monthly_income": 52000,
+"current_transport": "Metro",
+"commute_distance_km": 20
+},
+{
+"id": 37,
+"type": "Female Office Worker",
+"age": 34,
+"monthly_income": 65000,
+"current_transport": "Car",
+"commute_distance_km": 24
+},
+{
+"id": 38,
+"type": "Female Office Worker",
+"age": 25,
+"monthly_income": 36000,
+"current_transport": "Metro",
+"commute_distance_km": 14
+},
+{
+"id": 39,
+"type": "Female Office Worker",
+"age": 31,
+"monthly_income": 58000,
+"current_transport": "Cab",
+"commute_distance_km": 16
+},
+{
+"id": 40,
+"type": "Female Office Worker",
+"age": 28,
+"monthly_income": 46000,
+"current_transport": "Metro",
+"commute_distance_km": 19
+},
+{
+"id": 41,
+"type": "Male Office Worker",
+"age": 26,
+"monthly_income": 38000,
+"current_transport": "Metro",
+"commute_distance_km": 18
+},
+{
+"id": 42,
+"type": "Male Office Worker",
+"age": 29,
+"monthly_income": 50000,
+"current_transport": "Bike",
+"commute_distance_km": 15
+},
+{
+"id": 43,
+"type": "Male Office Worker",
+"age": 32,
+"monthly_income": 65000,
+"current_transport": "Car",
+"commute_distance_km": 22
+},
+{
+"id": 44,
+"type": "Male Office Worker",
+"age": 27,
+"monthly_income": 42000,
+"current_transport": "Bus",
+"commute_distance_km": 12
+},
+{
+"id": 45,
+"type": "Male Office Worker",
+"age": 35,
+"monthly_income": 80000,
+"current_transport": "Car",
+"commute_distance_km": 25
+},
+{
+"id": 46,
+"type": "Male Office Worker",
+"age": 30,
+"monthly_income": 55000,
+"current_transport": "Metro",
+"commute_distance_km": 20
+},
+{
+"id": 47,
+"type": "Male Office Worker",
+"age": 28,
+"monthly_income": 47000,
+"current_transport": "Bike",
+"commute_distance_km": 14
+},
+{
+"id": 48,
+"type": "Male Office Worker",
+"age": 33,
+"monthly_income": 70000,
+"current_transport": "Car",
+"commute_distance_km": 24
+},
+{
+"id": 49,
+"type": "Male Office Worker",
+"age": 25,
+"monthly_income": 36000,
+"current_transport": "Metro",
+"commute_distance_km": 13
+},
+{
+"id": 50,
+"type": "Male Office Worker",
+"age": 31,
+"monthly_income": 62000,
+"current_transport": "Bike",
+"commute_distance_km": 17
+},
+{
+"id": 51,
+"type": "Male Office Worker",
+"age": 29,
+"monthly_income": 52000,
+"current_transport": "Metro",
+"commute_distance_km": 19
+},
+{
+"id": 52,
+"type": "Male Office Worker",
+"age": 34,
+"monthly_income": 75000,
+"current_transport": "Car",
+"commute_distance_km": 23
+},
+{
+"id": 53,
+"type": "Male Office Worker",
+"age": 27,
+"monthly_income": 43000,
+"current_transport": "Bus",
+"commute_distance_km": 11
+},
+{
+"id": 54,
+"type": "Male Office Worker",
+"age": 36,
+"monthly_income": 85000,
+"current_transport": "Car",
+"commute_distance_km": 27
+},
+{
+"id": 55,
+"type": "Male Office Worker",
+"age": 28,
+"monthly_income": 48000,
+"current_transport": "Metro",
+"commute_distance_km": 16
+},
+{
+"id": 56,
+"type": "Male Office Worker",
+"age": 30,
+"monthly_income": 56000,
+"current_transport": "Bike",
+"commute_distance_km": 18
+},
+{
+"id": 57,
+"type": "Male Office Worker",
+"age": 32,
+"monthly_income": 67000,
+"current_transport": "Car",
+"commute_distance_km": 21
+},
+{
+"id": 58,
+"type": "Male Office Worker",
+"age": 26,
+"monthly_income": 39000,
+"current_transport": "Metro",
+"commute_distance_km": 14
+},
+{
+"id": 59,
+"type": "Male Office Worker",
+"age": 35,
+"monthly_income": 78000,
+"current_transport": "Car",
+"commute_distance_km": 26
+},
+{
+"id": 60,
+"type": "Male Office Worker",
+"age": 29,
+"monthly_income": 51000,
+"current_transport": "Bike",
+"commute_distance_km": 15
+},
+{
+"id": 61,
+"type": "Auto Driver",
+"age": 38,
+"monthly_income": 28000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 40
+},
+{
+"id": 62,
+"type": "Auto Driver",
+"age": 42,
+"monthly_income": 32000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 50
+},
+{
+"id": 63,
+"type": "Auto Driver",
+"age": 35,
+"monthly_income": 26000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 35
+},
+{
+"id": 64,
+"type": "Auto Driver",
+"age": 45,
+"monthly_income": 34000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 55
+},
+{
+"id": 65,
+"type": "Auto Driver",
+"age": 39,
+"monthly_income": 30000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 45
+},
+{
+"id": 66,
+"type": "Auto Driver",
+"age": 41,
+"monthly_income": 31000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 48
+},
+{
+"id": 67,
+"type": "Auto Driver",
+"age": 36,
+"monthly_income": 27000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 38
+},
+{
+"id": 68,
+"type": "Auto Driver",
+"age": 43,
+"monthly_income": 33000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 52
+},
+{
+"id": 69,
+"type": "Auto Driver",
+"age": 37,
+"monthly_income": 29000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 42
+},
+{
+"id": 70,
+"type": "Auto Driver",
+"age": 40,
+"monthly_income": 30500,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 47
+},
+{
+"id": 71,
+"type": "Shop Owner",
+"age": 33,
+"monthly_income": 45000,
+"current_transport": "Bike",
+"commute_distance_km": 5
+},
+{
+"id": 72,
+"type": "Shop Owner",
+"age": 40,
+"monthly_income": 60000,
+"current_transport": "Car",
+"commute_distance_km": 8
+},
+{
+"id": 73,
+"type": "Shop Owner",
+"age": 36,
+"monthly_income": 52000,
+"current_transport": "Bike",
+"commute_distance_km": 4
+},
+{
+"id": 74,
+"type": "Shop Owner",
+"age": 45,
+"monthly_income": 75000,
+"current_transport": "Car",
+"commute_distance_km": 10
+},
+{
+"id": 75,
+"type": "Shop Owner",
+"age": 38,
+"monthly_income": 58000,
+"current_transport": "Scooter",
+"commute_distance_km": 6
+},
+{
+"id": 76,
+"type": "Shop Owner",
+"age": 42,
+"monthly_income": 68000,
+"current_transport": "Car",
+"commute_distance_km": 9
+},
+{
+"id": 77,
+"type": "Shop Owner",
+"age": 35,
+"monthly_income": 50000,
+"current_transport": "Bike",
+"commute_distance_km": 5
+},
+{
+"id": 78,
+"type": "Shop Owner",
+"age": 47,
+"monthly_income": 82000,
+"current_transport": "Car",
+"commute_distance_km": 11
+},
+{
+"id": 79,
+"type": "Shop Owner",
+"age": 39,
+"monthly_income": 62000,
+"current_transport": "Scooter",
+"commute_distance_km": 7
+},
+{
+"id": 80,
+"type": "Shop Owner",
+"age": 34,
+"monthly_income": 47000,
+"current_transport": "Bike",
+"commute_distance_km": 4
+},
+{
+"id": 81,
+"type": "Shop Owner",
+"age": 41,
+"monthly_income": 70000,
+"current_transport": "Car",
+"commute_distance_km": 8
+},
+{
+"id": 82,
+"type": "Shop Owner",
+"age": 37,
+"monthly_income": 55000,
+"current_transport": "Scooter",
+"commute_distance_km": 6
+},
+{
+"id": 83,
+"type": "Shop Owner",
+"age": 44,
+"monthly_income": 78000,
+"current_transport": "Car",
+"commute_distance_km": 10
+},
+{
+"id": 84,
+"type": "Shop Owner",
+"age": 32,
+"monthly_income": 43000,
+"current_transport": "Bike",
+"commute_distance_km": 3
+},
+{
+"id": 85,
+"type": "Shop Owner",
+"age": 46,
+"monthly_income": 85000,
+"current_transport": "Car",
+"commute_distance_km": 12
+},
+{
+"id": 86,
+"type": "Shop Owner",
+"age": 38,
+"monthly_income": 59000,
+"current_transport": "Scooter",
+"commute_distance_km": 5
+},
+{
+"id": 87,
+"type": "Shop Owner",
+"age": 35,
+"monthly_income": 51000,
+"current_transport": "Bike",
+"commute_distance_km": 4
+},
+{
+"id": 88,
+"type": "Shop Owner",
+"age": 43,
+"monthly_income": 72000,
+"current_transport": "Car",
+"commute_distance_km": 9
+},
+{
+"id": 89,
+"type": "Shop Owner",
+"age": 36,
+"monthly_income": 54000,
+"current_transport": "Scooter",
+"commute_distance_km": 6
+},
+{
+"id": 90,
+"type": "Shop Owner",
+"age": 48,
+"monthly_income": 90000,
+"current_transport": "Car",
+"commute_distance_km": 13
+},
+{
+"id": 91,
+"type": "Female Student",
+"age": 20,
+"monthly_income": 5000,
+"current_transport": "Metro",
+"commute_distance_km": 10
+},
+{
+"id": 92,
+"type": "Female Office Worker",
+"age": 29,
+"monthly_income": 48000,
+"current_transport": "Metro",
+"commute_distance_km": 18
+},
+{
+"id": 93,
+"type": "Male Office Worker",
+"age": 31,
+"monthly_income": 61000,
+"current_transport": "Car",
+"commute_distance_km": 22
+},
+{
+"id": 94,
+"type": "Auto Driver",
+"age": 40,
+"monthly_income": 30000,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 46
+},
+{
+"id": 95,
+"type": "Shop Owner",
+"age": 39,
+"monthly_income": 63000,
+"current_transport": "Scooter",
+"commute_distance_km": 7
+},
+{
+"id": 96,
+"type": "Female Student",
+"age": 22,
+"monthly_income": 7500,
+"current_transport": "Metro",
+"commute_distance_km": 16
+},
+{
+"id": 97,
+"type": "Female Office Worker",
+"age": 30,
+"monthly_income": 54000,
+"current_transport": "Cab",
+"commute_distance_km": 19
+},
+{
+"id": 98,
+"type": "Male Office Worker",
+"age": 28,
+"monthly_income": 50000,
+"current_transport": "Metro",
+"commute_distance_km": 17
+},
+{
+"id": 99,
+"type": "Auto Driver",
+"age": 44,
+"monthly_income": 33500,
+"current_transport": "Auto Rickshaw",
+"commute_distance_km": 53
+},
+{
+"id": 100,
+"type": "Shop Owner",
+"age": 42,
+"monthly_income": 71000,
+"current_transport": "Car",
+"commute_distance_km": 8
+}
+]
