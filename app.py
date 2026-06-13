@@ -1,9 +1,11 @@
 import streamlit as st
-import subprocess
 import json
 import time
 import copy
 import requests
+import importlib.util
+import sys
+import os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -550,7 +552,8 @@ def live_replay(policy_arg):
     sys.path.insert(0, os.getcwd())
 
     try:
-        with open("enhanced_citizens.json") as f:
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
             citizens = json.load(f)
     except FileNotFoundError:
         st.error("enhanced_citizens.json not found. Run enhance_citizens.py first.")
@@ -843,16 +846,40 @@ def simulate_custom_citizen(ctype, income, distance, policy_arg):
 
 
 # =====================================================
-# RUN SIMULATION HELPER
+# RUN SIMULATION HELPER — imports simulation.py directly
+# (no subprocess — works on Streamlit Cloud)
 # =====================================================
 
 def run_simulation(p):
+    """Run simulation by importing simulation.py as a module with the policy injected."""
     arg = p if not isinstance(p, dict) else json.dumps(p)
-    subprocess.run(["python", "simulation.py", arg], check=True)
-    with open("results.json") as f:
+
+    # Inject the policy into sys.argv so simulation.py picks it up
+    old_argv = sys.argv[:]
+    sys.argv = ["simulation.py", arg]
+
+    # Find simulation.py relative to app.py
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    sim_path = os.path.join(app_dir, "simulation.py")
+
+    # Load and execute simulation.py as a fresh module each time
+    spec = importlib.util.spec_from_file_location("simulation", sim_path)
+    sim_module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(sim_module)
+    except SystemExit:
+        pass  # simulation.py may call sys.exit; ignore
+    finally:
+        sys.argv = old_argv
+
+    # Read results written by simulation.py
+    results_path  = os.path.join(app_dir, "results.json")
+    map_data_path = os.path.join(app_dir, "map_data.json")
+
+    with open(results_path) as f:
         r = json.load(f)
     try:
-        with open("map_data.json") as f:
+        with open(map_data_path) as f:
             r["map_data"] = json.load(f)
     except Exception:
         r["map_data"] = []
