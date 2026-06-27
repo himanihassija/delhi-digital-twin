@@ -18,13 +18,21 @@ POLICY = (
 )
 
 CUSTOM_POLICY = None
+# Support stacked policies: pass as JSON list ["Policy A", "Policy B"]
+ACTIVE_POLICIES = []
 try:
     parsed = json.loads(POLICY)
     if isinstance(parsed, dict) and "name" in parsed:
         CUSTOM_POLICY = parsed
         POLICY = parsed["name"]
+        ACTIVE_POLICIES = [POLICY]
+    elif isinstance(parsed, list):
+        ACTIVE_POLICIES = parsed
+        POLICY = " + ".join(parsed)
+    else:
+        ACTIVE_POLICIES = [POLICY]
 except Exception:
-    pass
+    ACTIVE_POLICIES = [POLICY]
 
 # =====================================================
 # TIME OF DAY SLOTS
@@ -135,73 +143,69 @@ def get_transport_scores(citizen, time_slot="Morning Peak"):
                 for attr, val in attrs.items():
                     transports[mode][attr] = val
 
-    # ── Classic Policies ───────────────────────────────────────────────────
-    elif POLICY == "Free Metro Rides For Women":
-        # Includes school students (often female, always safety-critical)
-        if ctype in ["Female Student", "Female Office Worker", "School Student"]:
-            transports["Metro"]["cost"] = 10
+    # ── Stackable Policies (each block applies independently) ───────────────
+    for active_policy in ACTIVE_POLICIES:
+        if active_policy == "Free Metro Rides For Women":
+            if ctype in ["Female Student", "Female Office Worker", "School Student"]:
+                transports["Metro"]["cost"] = 10
 
-    elif POLICY == "50% Bus Fare Reduction":
-        transports["Bus"]["cost"] = 10
-        # School students: slightly safer bus (parents reassured by crowded/subsidised service)
-        if ctype == "School Student":
-            transports["Bus"]["safety"] = min(10, transports["Bus"]["safety"] + 1)
+        if active_policy == "50% Bus Fare Reduction":
+            transports["Bus"]["cost"] = min(10, transports["Bus"]["cost"] + 2)
+            if ctype == "School Student":
+                transports["Bus"]["safety"] = min(10, transports["Bus"]["safety"] + 1)
 
-    elif POLICY == "Congestion Tax":
-        transports["Auto"]["cost"] = 1
+        if active_policy == "Congestion Tax":
+            transports["Auto"]["cost"] = max(1, transports["Auto"]["cost"] - 2)
 
-    elif POLICY == "New Metro Line":
-        transports["Metro"]["time"] = 10
-
-    # ── New Policies ───────────────────────────────────────────────────────
-    elif POLICY == "Metro Operating Hours Extended to 2 AM":
-        transports["Metro"]["safety"]  = min(10, transports["Metro"]["safety"] + 2)
-        transports["Metro"]["comfort"] = min(10, transports["Metro"]["comfort"] + 1)
-        transports["Auto"]["cost"]     = max(1,  transports["Auto"]["cost"] - 2)
-
-    elif POLICY == "Airport Express Fare Reduction":
-        if dist >= 15:
-            transports["Metro"]["cost"] = min(10, transports["Metro"]["cost"] + 3)
+        if active_policy == "New Metro Line":
             transports["Metro"]["time"] = min(10, transports["Metro"]["time"] + 2)
 
-    elif POLICY == "Reserved Student Coaches":
-        # Both college female students AND school students benefit
-        if ctype in ["Female Student", "School Student"]:
-            transports["Metro"]["comfort"] = 10
-            transports["Metro"]["safety"]  = 10
-            transports["Bus"]["comfort"]   = min(10, transports["Bus"]["comfort"] + 2)
-            transports["Bus"]["safety"]    = min(10, transports["Bus"]["safety"] + 2)
+        if active_policy == "Metro Operating Hours Extended to 2 AM":
+            transports["Metro"]["safety"]  = min(10, transports["Metro"]["safety"] + 2)
+            transports["Metro"]["comfort"] = min(10, transports["Metro"]["comfort"] + 1)
+            transports["Auto"]["cost"]     = max(1,  transports["Auto"]["cost"] - 2)
 
-    elif POLICY == "Personal Carbon Budget":
-        transports["Metro"]["cost"] = min(10, transports["Metro"]["cost"] + 2)
-        transports["Bus"]["cost"]   = min(10, transports["Bus"]["cost"] + 2)
-        transports["Auto"]["cost"]  = max(1,  transports["Auto"]["cost"] - 3)
+        if active_policy == "Airport Express Fare Reduction":
+            if dist >= 15:
+                transports["Metro"]["cost"] = min(10, transports["Metro"]["cost"] + 3)
+                transports["Metro"]["time"] = min(10, transports["Metro"]["time"] + 2)
 
-    elif POLICY == "Free Transit Birthdays":
-        if random.random() < (1/365 * 100):
-            transports["Metro"]["cost"] = 10
-            transports["Bus"]["cost"]   = 10
+        if active_policy == "Reserved Student Coaches":
+            if ctype in ["Female Student", "School Student"]:
+                transports["Metro"]["comfort"] = 10
+                transports["Metro"]["safety"]  = 10
+                transports["Bus"]["comfort"]   = min(10, transports["Bus"]["comfort"] + 2)
+                transports["Bus"]["safety"]    = min(10, transports["Bus"]["safety"] + 2)
 
-    elif POLICY == "Car-Free School Zones":
-        if ctype in ["Female Student", "School Student"]:
-            transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 4)
-            transports["Walking"]["safety"]  = min(10, transports["Walking"]["safety"] + 3)
-            transports["Bus"]["safety"]      = min(10, transports["Bus"]["safety"] + 2)
-        # School students specifically: bus becomes cheaper (fewer cars = better bus service)
-        if ctype == "School Student":
-            transports["Bus"]["cost"]        = min(10, transports["Bus"]["cost"] + 2)
-            transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 1)
+        if active_policy == "Personal Carbon Budget":
+            transports["Metro"]["cost"] = min(10, transports["Metro"]["cost"] + 2)
+            transports["Bus"]["cost"]   = min(10, transports["Bus"]["cost"] + 2)
+            transports["Auto"]["cost"]  = max(1,  transports["Auto"]["cost"] - 3)
 
-    elif POLICY == "One-Ticket City":
-        transports["Metro"]["time"]    = min(10, transports["Metro"]["time"] + 2)
-        transports["Bus"]["time"]      = min(10, transports["Bus"]["time"] + 2)
-        transports["Metro"]["comfort"] = min(10, transports["Metro"]["comfort"] + 1)
-        transports["Bus"]["comfort"]   = min(10, transports["Bus"]["comfort"] + 1)
+        if active_policy == "Free Transit Birthdays":
+            if random.random() < (1/365 * 100):
+                transports["Metro"]["cost"] = 10
+                transports["Bus"]["cost"]   = 10
 
-    elif POLICY == "Free EV Parking":
-        if dist <= 5:
-            transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 2)
-            transports["Metro"]["cost"]      = min(10, transports["Metro"]["cost"] + 1)
+        if active_policy == "Car-Free School Zones":
+            if ctype in ["Female Student", "School Student"]:
+                transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 4)
+                transports["Walking"]["safety"]  = min(10, transports["Walking"]["safety"] + 3)
+                transports["Bus"]["safety"]      = min(10, transports["Bus"]["safety"] + 2)
+            if ctype == "School Student":
+                transports["Bus"]["cost"]        = min(10, transports["Bus"]["cost"] + 2)
+                transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 1)
+
+        if active_policy == "One-Ticket City":
+            transports["Metro"]["time"]    = min(10, transports["Metro"]["time"] + 2)
+            transports["Bus"]["time"]      = min(10, transports["Bus"]["time"] + 2)
+            transports["Metro"]["comfort"] = min(10, transports["Metro"]["comfort"] + 1)
+            transports["Bus"]["comfort"]   = min(10, transports["Bus"]["comfort"] + 1)
+
+        if active_policy == "Free EV Parking":
+            if dist <= 5:
+                transports["Walking"]["comfort"] = min(10, transports["Walking"]["comfort"] + 2)
+                transports["Metro"]["cost"]      = min(10, transports["Metro"]["cost"] + 1)
 
     return transports
 
@@ -362,9 +366,15 @@ def compute_equity(citizens_before, citizens_after):
             "total":      d["total"],
         }
 
-    low_gain  = result["low"]["gain"]
-    high_gain = result["high"]["gain"]
-    equity_index = max(0, min(100, round(50 + (low_gain - high_gain) * 2, 1)))
+    low_gain    = result["low"]["gain"]
+    mid_gain    = result["middle"]["gain"]
+    high_gain   = result["high"]["gain"]
+    # Equity index: reward absolute gains for low-income, penalise if high-income gains >> low-income
+    # Base = how much low-income gained (0-50 → 0-50 points)
+    # Gap adjustment: if high gains much more than low, subtract proportionally
+    abs_gain_score = min(50, max(0, low_gain))               # up to 50 pts for low-income gain
+    gap_penalty    = max(0, (high_gain - low_gain) * 1.5)    # penalty only when high >> low
+    equity_index   = max(0, min(100, round(50 + abs_gain_score - gap_penalty, 1)))
     return {"brackets": result, "equity_index": equity_index}
 
 # =====================================================
