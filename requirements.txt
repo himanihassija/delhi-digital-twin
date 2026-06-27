@@ -1,5 +1,8 @@
-streamlit
-matplotlib
-numpy
-reportlab
-requests
+streamlit>=1.30.0
+anthropic>=0.20.0
+requests>=2.31.0
+numpy>=1.26.0
+matplotlib>=3.8.0
+folium>=0.15.0
+reportlab>=4.0.0
+python-pptx>=0.6.21
