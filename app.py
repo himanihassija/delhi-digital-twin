@@ -18,6 +18,7 @@ from reportlab.lib import colors
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
                                  Table, TableStyle, HRFlowable, Image as RLImage)
 from reportlab.lib.units import cm
+from archetypes_tab import render_archetypes_tab, compute_archetype_breakdown
 
 # =====================================================
 # PAGE CONFIG
@@ -146,7 +147,7 @@ div[data-testid="metric-container"] {
 # =====================================================
 
 st.title("🚇 Delhi's Digital Twin")
-st.markdown("**Agent-Based Urban Policy Simulator** — LLM Agents · 100 Citizens · 12 Policies · Live Metro Animation")
+st.markdown("**Agent-Based Urban Policy Simulator** — LLM Agents · 1,000 Citizens · 8 Archetypes · 12 Policies · Live Metro Animation")
 st.divider()
 
 # =====================================================
@@ -194,7 +195,7 @@ with st.sidebar:
     run_btn = st.button("🚀 Run Simulation", use_container_width=True, type="primary")
 
     st.divider()
-    st.caption("Simulates 100 Delhi citizens across 5 archetypes using agent-based modelling. Each agent weighs cost, time, comfort, and safety to choose optimal transport.")
+    st.caption("Simulates 1,000 Delhi citizens across 8 archetypes — including School Students, Elderly Residents, and Delivery Workers. Each agent weighs cost, time, comfort, and safety.")
 
 # =====================================================
 # NLP POLICY PARSER
@@ -782,6 +783,9 @@ def simulate_custom_citizen(ctype, income, distance, policy_arg):
         "Male Office Worker":  {"budget":6,"time":9,"comfort":7,"safety":6},
         "Auto Driver":         {"budget":5,"time":8,"comfort":4,"safety":5},
         "Shop Owner":          {"budget":7,"time":6,"comfort":6,"safety":6},
+        "School Student":      {"budget":10,"time":4,"comfort":4,"safety":9},
+        "Elderly Resident":    {"budget":9, "time":3,"comfort":9,"safety":9},
+        "Delivery Worker":     {"budget":8, "time":9,"comfort":3,"safety":4},
     }
     sens = sensitivity_map.get(ctype, {"budget":6,"time":6,"comfort":6,"safety":6})
 
@@ -883,6 +887,14 @@ def run_simulation(p):
             r["map_data"] = json.load(f)
     except Exception:
         r["map_data"] = []
+
+    updated_citizens_path = os.path.join(app_dir, "updated_citizens.json")
+    try:
+        with open(updated_citizens_path) as f:
+            r["citizens_after"] = json.load(f)
+    except Exception:
+        r["citizens_after"] = []
+
     return r
 
 
@@ -1396,7 +1408,8 @@ def render_results(results, llm_reports, policy_display):
     cc1, cc2, cc3 = st.columns(3)
     with cc1:
         cc_type = st.selectbox("Citizen Type", [
-            "Female Student","Female Office Worker","Male Office Worker","Auto Driver","Shop Owner"
+            "Female Student","Female Office Worker","Male Office Worker","Auto Driver","Shop Owner",
+            "School Student","Elderly Resident","Delivery Worker"
         ], key="cc_type")
     with cc2:
         cc_income = st.number_input("Monthly Income (₹)", min_value=3000, max_value=200000,
@@ -1554,6 +1567,14 @@ if run_btn:
             live_replay(policy_arg if not isinstance(policy_arg, dict) else
                         json.loads(policy_arg).get("name", str(policy_arg)))
 
+        # Load citizens_base for archetypes tab
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        try:
+            with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
+                citizens_base = json.load(f)
+        except Exception:
+            citizens_base = []
+
         # Full simulation
         with st.spinner("Running full analysis..."):
             results = run_simulation(policy_arg)
@@ -1566,7 +1587,15 @@ if run_btn:
                 for key in agent_keys:
                     llm_reports[key] = get_llm_report(key, results)
 
+        citizens_after = results.get("citizens_after", [])
+
         render_results(results, llm_reports, policy_display)
+
+        # Archetypes tab
+        if citizens_after:
+            st.divider()
+            st.subheader("🧩 Archetypes Breakdown")
+            render_archetypes_tab(results, citizens_base, citizens_after)
 
 else:
     # Default landing
@@ -1574,7 +1603,7 @@ else:
     <div class="dt-info-box">
         <div class="dt-info-title">How It Works</div>
         <div class="dt-info-body">
-            <b>100 citizens</b> across 5 archetypes each independently decide their transport mode
+            <b>1,000 citizens</b> across 8 archetypes each independently decide their transport mode
             based on cost, time, comfort, and safety sensitivity scores.<br><br>
             <b>12 Policies to simulate:</b><br>
             🚇 Free Metro Rides For Women &nbsp;·&nbsp; 🚌 50% Bus Fare Reduction &nbsp;·&nbsp; 🚗 Congestion Tax &nbsp;·&nbsp; 🛤️ New Metro Line<br>
