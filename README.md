@@ -149,13 +149,6 @@ delhi-digital-twin/
 
 ---
 
-## 🏙️ Built For
-
-**FAR AWAY Hackathon** — Round 1 Online MVP Submission
-Theme: Urban Intelligence / Smart Cities
-Submission deadline: 14 June 2026
-
----
 
 ## 📄 License
 
@@ -163,4 +156,4 @@ MIT License — feel free to fork, extend, and build on this.
 
 ---
 
-<p align="center">Built with ❤️ for Delhi · Powered by Claude · Simulated by Agents</p>
+<p align="center">Built with ❤️ for Delhi · Simulated by Agents</p>
