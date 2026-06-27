@@ -1,0 +1,118 @@
+{
+  "policy": "Free Metro Rides For Women",
+  "city_score": 1976,
+  "mobility_score": 1976,
+  "mobility_breakdown": {
+    "total": 1976,
+    "reduced_congestion": 237,
+    "public_transit_adoption": 210,
+    "cost_savings": 193,
+    "co2_reduction": 1336
+  },
+  "confidence_intervals": {
+    "mobility": [
+      1961.7,
+      4.2,
+      1953,
+      1965
+    ],
+    "co2": [
+      2648.2,
+      8.6,
+      2634,
+      2657
+    ],
+    "switches": [
+      776.2,
+      2.3,
+      773,
+      779
+    ]
+  },
+  "equity": {
+    "brackets": {
+      "low": {
+        "before_pct": 68.0,
+        "after_pct": 89.8,
+        "gain": 21.8,
+        "total": 266
+      },
+      "middle": {
+        "before_pct": 22.0,
+        "after_pct": 87.7,
+        "gain": 65.7,
+        "total": 486
+      },
+      "high": {
+        "before_pct": 36.7,
+        "after_pct": 96.8,
+        "gain": 60.1,
+        "total": 248
+      }
+    },
+    "equity_index": 0
+  },
+  "time_of_day": {
+    "Morning Peak": {
+      "switches": 773,
+      "co2": 2672,
+      "transport_after": {
+        "Metro": 905,
+        "Walking": 73,
+        "Auto": 22
+      },
+      "metro_share": 90.5
+    },
+    "Afternoon": {
+      "switches": 809,
+      "co2": 2833,
+      "transport_after": {
+        "Metro": 978,
+        "Walking": 22
+      },
+      "metro_share": 97.8
+    },
+    "Evening Peak": {
+      "switches": 773,
+      "co2": 2672,
+      "transport_after": {
+        "Metro": 905,
+        "Walking": 73,
+        "Auto": 22
+      },
+      "metro_share": 90.5
+    }
+  },
+  "citizen_sentiment": {
+    "score": 93,
+    "top_complaints": [
+      "Metro overcrowding during peak hours",
+      "Peak-hour crowding on metro",
+      "Limited coverage in outer districts"
+    ],
+    "top_benefits": [
+      "Free metro access for female commuters and school students",
+      "Improved gender equity in transit",
+      "Higher safety for women and children"
+    ]
+  },
+  "citizens_simulated": 1000,
+  "transport_changes": 773,
+  "estimated_co2_reduction": 2672,
+  "transport_before": {
+    "Bus": 194,
+    "Walking": 125,
+    "Auto": 496,
+    "Metro": 185
+  },
+  "transport_after": {
+    "Metro": 905,
+    "Walking": 73,
+    "Auto": 22
+  },
+  "government_report": "Recommendation: APPROVE\nPolicy: Free Metro Rides For Women\nMetro Growth: 720 users\nCO2 Score: 2672",
+  "transport_report": "Total Mode Switches: 773\nMetro demand: +720\nBus demand: -194",
+  "environment_report": "Environmental Impact: High\nCO2 Score: 2672",
+  "citizen_report": "773 citizens changed behavior.\nSatisfaction: 93/100",
+  "business_report": "Metro Users After: 905 (new: 720)\nFootfall uplift near metro: +1440 persons/day"
+}
