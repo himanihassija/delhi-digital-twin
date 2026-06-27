@@ -1,1764 +1,1316 @@
 import streamlit as st
-import json
-import time
-import copy
-import requests
-import importlib.util
-import sys
-import os
+import json, time, copy, requests, importlib.util, sys, os, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                 Table, TableStyle, HRFlowable, Image as RLImage)
-from reportlab.lib.units import cm
-from archetypes_tab import render_archetypes_tab, compute_archetype_breakdown
+import folium
+from folium.plugins import HeatMap, MarkerCluster
+import streamlit.components.v1 as components
 
-# =====================================================
-# PAGE CONFIG
-# =====================================================
-
+# ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Delhi's Digital Twin",
+    page_title="Delhi Digital Twin",
     page_icon="🚇",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
+# ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── CSS variables: auto-switch light / dark ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ── Root tokens ── */
 :root {
-    --card-bg:      #f1f5f9;
-    --card-border:  #cbd5e1;
-    --text-primary: #0f172a;
-    --text-muted:   #475569;
-    --accent:       #22c55e;
-    --tab-bg:       #e2e8f0;
-}
-@media (prefers-color-scheme: dark) {
-    :root {
-        --card-bg:      #1e293b;
-        --card-border:  #334155;
-        --text-primary: #f8fafc;
-        --text-muted:   #94a3b8;
-        --accent:       #22c55e;
-        --tab-bg:       #1e293b;
-    }
-}
-/* Streamlit dark-mode class override */
-[data-theme="dark"] {
-    --card-bg:      #1e293b;
-    --card-border:  #334155;
-    --text-primary: #f8fafc;
-    --text-muted:   #94a3b8;
-    --tab-bg:       #1e293b;
+  --c-bg:       #0a0e1a;
+  --c-surface:  #111827;
+  --c-card:     #1a2235;
+  --c-border:   #2a3548;
+  --c-accent:   #3b82f6;
+  --c-green:    #22c55e;
+  --c-amber:    #f59e0b;
+  --c-red:      #ef4444;
+  --c-purple:   #a78bfa;
+  --c-text:     #f1f5f9;
+  --c-muted:    #64748b;
+  --c-subtle:   #1e2d42;
 }
 
-/* metric cards */
+html, body, [data-testid="stAppViewContainer"] {
+  background: var(--c-bg) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Hide Streamlit chrome */
+#MainMenu, footer, header { visibility: hidden; }
+[data-testid="stHeader"] { display: none; }
+[data-testid="stSidebar"] > div:first-child { background: var(--c-surface) !important; border-right: 1px solid var(--c-border); }
+
+/* Metrics */
 div[data-testid="metric-container"] {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 12px;
+  background: var(--c-card) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: 14px !important;
+  padding: 1.1rem 1.3rem !important;
 }
+div[data-testid="metric-container"] label { color: var(--c-muted) !important; font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; }
+div[data-testid="metric-container"] [data-testid="stMetricValue"] { color: var(--c-text) !important; font-size: 28px !important; font-weight: 600 !important; }
 
-/* tab bar */
+/* Tabs */
 .stTabs [data-baseweb="tab-list"] {
-    background: var(--tab-bg);
-    border-radius: 8px;
+  background: var(--c-surface) !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+  gap: 2px !important;
+  border: 1px solid var(--c-border) !important;
+}
+.stTabs [data-baseweb="tab"] {
+  border-radius: 8px !important;
+  color: var(--c-muted) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  padding: 6px 16px !important;
+}
+.stTabs [aria-selected="true"] {
+  background: var(--c-accent) !important;
+  color: white !important;
 }
 
-/* inline HTML cards — use CSS vars so they flip automatically */
+/* Buttons */
+.stButton > button {
+  background: var(--c-accent) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  transition: all .2s !important;
+}
+.stButton > button:hover { opacity: .9 !important; transform: translateY(-1px) !important; }
+
+/* Selectbox / text area */
+.stSelectbox > div > div,
+.stTextArea > div > div > textarea {
+  background: var(--c-card) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: 10px !important;
+  color: var(--c-text) !important;
+}
+
+/* ── Custom component styles ── */
+.dt-hero {
+  background: linear-gradient(135deg, #0f1e3d 0%, #0a1628 50%, #111827 100%);
+  border: 1px solid var(--c-border);
+  border-radius: 20px;
+  padding: 2.5rem 3rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.dt-hero::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #3b82f6, #a78bfa, transparent);
+}
+.dt-hero h1 { font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin: 0 0 .5rem; letter-spacing: -.02em; }
+.dt-hero p  { color: #64748b; font-size: 1rem; margin: 0; }
+.dt-hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #93c5fd; margin-bottom: 1rem; }
+
 .dt-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 14px;
-    text-align: center;
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
 }
-.dt-card-label { color: var(--text-muted); font-size: 13px; margin-bottom: 4px; }
-.dt-card-value { color: var(--accent);     font-size: 26px; font-weight: 700; }
+.dt-card-title { font-size: 13px; font-weight: 600; color: var(--c-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .75rem; }
+.dt-card-value { font-size: 2.2rem; font-weight: 700; color: var(--c-text); line-height: 1; }
+.dt-card-sub { font-size: 12px; color: var(--c-muted); margin-top: .3rem; }
 
-.dt-legend-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+.dt-grade {
+  display: flex; align-items: center; justify-content: center;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  font-size: 2rem; font-weight: 800;
+  margin: 0 auto 1rem;
 }
-.dt-legend-dot { width: 12px; height: 12px; border-radius: 50%; }
-.dt-legend-name { color: var(--text-primary); }
-.dt-legend-count { color: var(--text-muted); margin-left: auto; }
 
-.dt-info-box {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-top: 16px;
+.dt-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--c-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--c-text);
+  cursor: pointer;
+  margin: 4px;
+  transition: all .15s;
 }
-.dt-info-title { color: var(--text-primary); font-size: 18px; font-weight: 600; margin-bottom: 12px; }
-.dt-info-body  { color: var(--text-muted); line-height: 1.7; }
+.dt-chip:hover { border-color: var(--c-accent); background: rgba(59,130,246,.1); }
 
-.dt-eq-box {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 16px;
-    margin-top: 20px;
+.dt-aqi-bar {
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, #22c55e 0%, #f59e0b 40%, #ef4444 70%, #7f1d1d 100%);
+  position: relative; margin: .5rem 0;
 }
-.dt-eq-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-.dt-eq-value { font-size: 40px; font-weight: 700; margin: 6px 0; }
-.dt-eq-note  { color: var(--text-primary); font-size: 13px; }
+.dt-aqi-needle {
+  position: absolute; top: -4px;
+  width: 4px; height: 18px;
+  background: white;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px rgba(0,0,0,.5);
+}
 
-.dt-sentiment-box {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 14px;
+.dt-debate-msg {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: .75rem;
 }
-.dt-sentiment-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase;
-                       letter-spacing: 1px; margin-bottom: 8px; }
-.dt-sentiment-track { flex: 1; background: var(--card-border); border-radius: 4px; height: 10px; }
+.dt-debate-agent { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin-bottom: .35rem; }
+.dt-debate-text { font-size: 13px; color: #cbd5e1; line-height: 1.6; }
 
-.dt-score-card {
-    background: var(--card-bg);
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
+.dt-tweet {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: .9rem 1.1rem;
+  margin-bottom: .6rem;
 }
-.dt-score-label { color: var(--text-muted); font-size: 12px; }
-.dt-score-value { font-size: 20px; font-weight: 700; }
+.dt-tweet-handle { font-size: 12px; font-weight: 600; color: var(--c-accent); }
+.dt-tweet-type   { font-size: 11px; color: var(--c-muted); }
+.dt-tweet-text   { font-size: 13px; color: var(--c-text); margin-top: .4rem; line-height: 1.5; }
 
-.dt-best-banner {
-    background: linear-gradient(135deg, #14532d, #166534);
-    border: 1px solid #22c55e;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
+.dt-persona {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
 }
+.dt-persona-name { font-size: 14px; font-weight: 600; color: var(--c-text); }
+.dt-persona-info { font-size: 12px; color: var(--c-muted); margin: .2rem 0 .4rem; }
+.dt-persona-story{ font-size: 12px; color: #94a3b8; line-height: 1.5; }
+
+.dt-roi-box {
+  text-align: center;
+  background: linear-gradient(135deg, rgba(34,197,94,.1), rgba(59,130,246,.05));
+  border: 1px solid rgba(34,197,94,.3);
+  border-radius: 14px;
+  padding: 1.5rem;
+}
+.dt-roi-label { font-size: 12px; color: var(--c-muted); text-transform: uppercase; letter-spacing: .07em; }
+.dt-roi-value { font-size: 2.8rem; font-weight: 800; color: var(--c-green); line-height: 1; margin: .3rem 0; }
+.dt-roi-sub { font-size: 12px; color: #94a3b8; }
+
+.report-card-grade-A  { background: rgba(34,197,94,.15);  border: 2px solid #22c55e; color: #22c55e; }
+.report-card-grade-B  { background: rgba(59,130,246,.15); border: 2px solid #3b82f6; color: #3b82f6; }
+.report-card-grade-C  { background: rgba(245,158,11,.15); border: 2px solid #f59e0b; color: #f59e0b; }
+.report-card-grade-D  { background: rgba(239,68,68,.15);  border: 2px solid #ef4444; color: #ef4444; }
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# HEADER
-# =====================================================
 
-st.title("🚇 Delhi's Digital Twin")
-st.markdown("**Agent-Based Urban Policy Simulator** — LLM Agents · 1,000 Citizens · 8 Archetypes · 12 Policies · Live Metro Animation")
-st.divider()
+# ─── CONSTANTS ────────────────────────────────────────────────────────────────
+DELHI_NEIGHBORHOODS = [
+    {"name": "Connaught Place",   "lat": 28.6315, "lng": 77.2167},
+    {"name": "Dwarka",            "lat": 28.5921, "lng": 77.0460},
+    {"name": "Rohini",            "lat": 28.7495, "lng": 77.0670},
+    {"name": "Lajpat Nagar",      "lat": 28.5710, "lng": 77.2440},
+    {"name": "Karol Bagh",        "lat": 28.6514, "lng": 77.1907},
+    {"name": "Saket",             "lat": 28.5246, "lng": 77.2166},
+    {"name": "Janakpuri",         "lat": 28.6286, "lng": 77.0823},
+    {"name": "Pitampura",         "lat": 28.7007, "lng": 77.1321},
+    {"name": "Vasant Kunj",       "lat": 28.5200, "lng": 77.1577},
+    {"name": "Shahdara",          "lat": 28.6729, "lng": 77.2921},
+    {"name": "Mayur Vihar",       "lat": 28.6108, "lng": 77.2927},
+    {"name": "Rajouri Garden",    "lat": 28.6495, "lng": 77.1219},
+    {"name": "Nehru Place",       "lat": 28.5491, "lng": 77.2518},
+    {"name": "Hauz Khas",         "lat": 28.5494, "lng": 77.2001},
+    {"name": "Noida Sector 18",   "lat": 28.5691, "lng": 77.3211},
+    {"name": "Gurugram",          "lat": 28.4595, "lng": 77.0266},
+    {"name": "Civil Lines",       "lat": 28.6799, "lng": 77.2252},
+    {"name": "Kirti Nagar",       "lat": 28.6565, "lng": 77.1476},
+    {"name": "Uttam Nagar",       "lat": 28.6208, "lng": 77.0555},
+    {"name": "Laxmi Nagar",       "lat": 28.6298, "lng": 77.2777},
+]
 
-# =====================================================
-# SIDEBAR
-# =====================================================
-
-with st.sidebar:
-    st.header("⚙️ Controls")
-
-    mode = st.radio("Mode", ["Single Policy", "Stacked Policies", "Compare All Policies"], horizontal=False)
-
-    if mode == "Single Policy":
-        policy_type = st.radio("Policy Source", ["Preset", "Natural Language"], horizontal=True)
-
-        if policy_type == "Preset":
-            policy = st.selectbox("Choose Policy", [
-                "── Classic Policies ──",
-                "Free Metro Rides For Women",
-                "50% Bus Fare Reduction",
-                "Congestion Tax",
-                "New Metro Line",
-                "── New Policies ──",
-                "Metro Operating Hours Extended to 2 AM",
-                "Airport Express Fare Reduction",
-                "Reserved Student Coaches",
-                "Personal Carbon Budget",
-                "Free Transit Birthdays",
-                "Car-Free School Zones",
-                "One-Ticket City",
-                "Free EV Parking",
-            ])
-            custom_policy_str = None
-        else:
-            nl_input = st.text_area(
-                "Describe your policy",
-                placeholder="e.g. Subsidise e-rickshaws by 30% to reduce auto costs",
-                height=100
-            )
-            custom_policy_str = nl_input if nl_input.strip() else None
-            policy = nl_input if nl_input.strip() else "(enter policy above)"
-
-    elif mode == "Stacked Policies":
-        PRESET_POLICIES = [
-            "Free Metro Rides For Women",
-            "50% Bus Fare Reduction",
-            "Congestion Tax",
-            "New Metro Line",
-            "Metro Operating Hours Extended to 2 AM",
-            "Airport Express Fare Reduction",
-            "Reserved Student Coaches",
-            "Personal Carbon Budget",
-            "Free Transit Birthdays",
-            "Car-Free School Zones",
-            "One-Ticket City",
-            "Free EV Parking",
-        ]
-        st.markdown("**Pick 2 policies to stack:**")
-        stack_p1 = st.selectbox("Policy 1", PRESET_POLICIES, index=0, key="stack_p1")
-        stack_p2 = st.selectbox("Policy 2", [p for p in PRESET_POLICIES if p != stack_p1],
-                                 index=0, key="stack_p2")
-        stacked_policies = [stack_p1, stack_p2]
-        policy = " + ".join(stacked_policies)
-        custom_policy_str = None
-
-    st.divider()
-    use_llm = st.toggle("🤖 LLM Agent Reports", value=True,
-                        help="Calls Claude to generate intelligent agent analysis")
-    run_btn = st.button("🚀 Run Simulation", use_container_width=True, type="primary")
-
-    st.divider()
-    st.caption("Simulates 1,000 Delhi citizens across 8 archetypes — including School Students, Elderly Residents, and Delivery Workers. Each agent weighs cost, time, comfort, and safety.")
-
-# =====================================================
-# NLP POLICY PARSER
-# =====================================================
-
-def parse_nl_policy(text):
-    """Call Claude to parse a natural language policy into simulation parameters."""
-    prompt = f"""You are an urban policy simulation engine for Delhi, India.
-
-A user described this transport policy: "{text}"
-
-Map it to simulation parameters. The simulation has these transport modes with attributes (score 1-10):
-- Metro: cost, time, comfort, safety
-- Bus: cost, time, comfort, safety  
-- Auto: cost, time, comfort, safety
-- Walking: cost, time, comfort, safety
-
-Higher score = better for that attribute. Current defaults:
-Metro: cost=5, time=8, comfort=7, safety=8
-Bus:   cost=8, time=5, comfort=4, safety=5
-Auto:  cost=3, time=9, comfort=8, safety=6
-Walking: cost=10, time=2, comfort=2, safety=7
-
-Respond ONLY with valid JSON, no preamble, no markdown:
-{{
-  "name": "short policy name (max 5 words)",
-  "effects": {{
-    "ModeNameIfChanged": {{"attribute": new_value}}
-  }},
-  "explanation": "one sentence explaining how you mapped it"
-}}
-
-Only include modes that actually change. Only include attributes that change."""
-
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"Content-Type": "application/json"},
-            json={
-                "model": "claude-sonnet-4-6",
-                "max_tokens": 500,
-                "messages": [{"role": "user", "content": prompt}]
-            },
-            timeout=15
-        )
-        data = resp.json()
-        raw = data["content"][0]["text"].strip()
-        raw = raw.replace("```json","").replace("```","").strip()
-        return json.loads(raw)
-    except Exception as e:
-        return None
-
-# =====================================================
-# LLM AGENT REPORTS
-# =====================================================
-
-AGENT_PROMPTS = {
-    "government": (
-        "You are the Delhi Government Policy Advisor. Analyse this simulation data and write a concise "
-        "policy brief (3-4 paragraphs) with: recommendation (APPROVE/REVIEW/REJECT with reason), "
-        "key metrics that support your decision, and one specific implementation suggestion."
-    ),
-    "transport": (
-        "You are the Delhi Metro & Transport Authority Chief. Analyse this simulation data and write "
-        "an operational brief (3-4 paragraphs) covering: capacity implications, recommended service "
-        "changes, infrastructure needs, and risk factors."
-    ),
-    "environment": (
-        "You are Delhi's Chief Environmental Officer. Analyse this simulation data and write an "
-        "environmental impact assessment (3-4 paragraphs) covering: air quality impact, CO2 "
-        "reduction estimate, comparison to Delhi's AQI targets, and long-term sustainability."
-    ),
-    "citizens": (
-        "You are a Delhi Citizens Welfare Analyst. Analyse this simulation data and write a citizen "
-        "impact report (3-4 paragraphs) covering: who benefits most, equity concerns, behavioural "
-        "insights, and citizen satisfaction drivers."
-    ),
-    "business": (
-        "You are a Delhi Urban Economics Analyst. Analyse this simulation data and write a business "
-        "impact report (3-4 paragraphs) covering: footfall changes near transit corridors, "
-        "economic opportunity, sectors that benefit, and risks for existing transport businesses."
-    ),
-    "social": (
-        "You are a social media analyst for Delhi. Given this transport policy simulation data, "
-        "write exactly 6 short social media posts (tweet-length, max 25 words each) — one from each "
-        "of these archetypes reacting to the policy: School Student, Female Student, Female Office Worker, "
-        "Auto Driver, Elderly Resident, Delivery Worker. "
-        "Format: each post on its own line starting with the archetype emoji and name in bold, then the post. "
-        "Use a realistic Delhi voice — mix Hindi-English (Hinglish) where natural. "
-        "Some should be excited, some worried, some neutral. Respond ONLY with the 6 posts, no preamble."
-    )
+TRANSPORT_COLORS = {
+    "Metro":   "#3b82f6",
+    "Bus":     "#22c55e",
+    "Auto":    "#f59e0b",
+    "Walking": "#a78bfa",
 }
 
-def get_llm_report(agent_name, results):
-    system = AGENT_PROMPTS[agent_name]
-    data_summary = json.dumps({
-        "policy":               results["policy"],
-        "transport_before":     results["transport_before"],
-        "transport_after":      results["transport_after"],
-        "transport_changes":    results["transport_changes"],
-        "estimated_co2_reduction": results["estimated_co2_reduction"],
-        "mobility_score":       results["mobility_score"],
-        "mobility_breakdown":   results.get("mobility_breakdown", {}),
-        "confidence_intervals": results.get("confidence_intervals", {}),
-        "equity":               results.get("equity", {}),
-        "time_of_day":          results.get("time_of_day", {}),
-        "citizen_sentiment":    results.get("citizen_sentiment", {})
-    }, indent=2)
+AGENT_CONFIG = {
+    "government":  {"label": "Government",        "color": "#3b82f6", "emoji": "🏛️"},
+    "transport":   {"label": "Transport Auth.",    "color": "#22c55e", "emoji": "🚇"},
+    "environment": {"label": "Environment",        "color": "#10b981", "emoji": "🌿"},
+    "citizens":    {"label": "Citizens",           "color": "#f59e0b", "emoji": "👥"},
+    "business":    {"label": "Business",           "color": "#a78bfa", "emoji": "💼"},
+}
 
+BASE_T = {
+    "Metro":   {"cost": 5, "time": 8, "comfort": 7, "safety": 8},
+    "Bus":     {"cost": 8, "time": 5, "comfort": 4, "safety": 5},
+    "Auto":    {"cost": 3, "time": 9, "comfort": 8, "safety": 6},
+    "Walking": {"cost": 10,"time": 2, "comfort": 2, "safety": 7},
+}
+
+POLICIES = [
+    "── Classic ──",
+    "Free Metro Rides For Women",
+    "50% Bus Fare Reduction",
+    "Congestion Tax",
+    "New Metro Line",
+    "── New ──",
+    "Metro Operating Hours Extended to 2 AM",
+    "Airport Express Fare Reduction",
+    "Reserved Student Coaches",
+    "Personal Carbon Budget",
+    "Free Transit Birthdays",
+    "Car-Free School Zones",
+    "One-Ticket City",
+    "Free EV Parking",
+]
+
+CLAUDE_MODEL = "claude-sonnet-4-6"
+
+
+# ─── HELPERS ──────────────────────────────────────────────────────────────────
+def claude(prompt: str, system: str = "", max_tokens: int = 800) -> str:
+    body = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if system:
+        body["system"] = system
     try:
-        resp = requests.post(
+        r = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"Content-Type": "application/json"},
-            json={
-                "model": "claude-sonnet-4-6",
-                "max_tokens": 600,
-                "system": system,
-                "messages": [{"role": "user", "content": f"Simulation data:\n{data_summary}\n\nWrite your report now."}]
-            },
-            timeout=20
+            json=body, timeout=25,
         )
-        data = resp.json()
-        return data["content"][0]["text"].strip()
-    except Exception:
-        return results.get(f"{agent_name}_report", "Report unavailable.")
-
-# =====================================================
-# CHART HELPERS
-# =====================================================
-
-def dark_fig(w=10, h=5):
-    fig, ax = plt.subplots(figsize=(w,h))
-    fig.patch.set_alpha(0)          # transparent — adapts to light/dark
-    ax.set_facecolor("none")
-    for s in ["top","right"]:   ax.spines[s].set_visible(False)
-    for s in ["bottom","left"]: ax.spines[s].set_color("#94a3b8")
-    ax.tick_params(colors="gray")
-    return fig, ax
+        return r.json()["content"][0]["text"].strip()
+    except Exception as e:
+        return f"[API error: {e}]"
 
 
-def plot_transport(before, after):
-    modes = sorted(set(before.keys()) | set(after.keys()))
-    bv = [before.get(m,0) for m in modes]
-    av = [after.get(m,0)  for m in modes]
-    x  = np.arange(len(modes))
-
-    fig, ax = dark_fig(10, 5)
-    ax.bar(x-0.2, bv, 0.4, label="Before", color="#3b82f6", alpha=0.9)
-    bars = ax.bar(x+0.2, av, 0.4, label="After", color="#f97316", alpha=0.9)
-    for bar in bars:
-        h = bar.get_height()
-        if h > 0:
-            ax.text(bar.get_x()+bar.get_width()/2, h+0.3, str(int(h)),
-                    ha="center", va="bottom", color="#f97316", fontsize=9)
-    ax.set_xticks(x); ax.set_xticklabels(modes, color="#cbd5e1", rotation=15, ha="right")
-    ax.set_ylabel("Citizens")
-    ax.set_title("Transport Distribution Change", pad=10)
-    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
-    plt.tight_layout()
-    return fig
+def grade(score: float, max_score: float = 100) -> tuple[str, str]:
+    pct = score / max_score * 100
+    if pct >= 80: return "A", "report-card-grade-A"
+    if pct >= 65: return "B", "report-card-grade-B"
+    if pct >= 50: return "C", "report-card-grade-C"
+    return "D", "report-card-grade-D"
 
 
-def plot_co2(co2):
-    fig, ax = dark_fig(5, 4)
-    color = "#22c55e" if co2>20 else "#f59e0b" if co2>10 else "#ef4444"
-    ax.bar(["CO2 Reduction"], [co2], color=color, width=0.4)
-    ax.text(0, co2+0.3, str(co2), ha="center", va="bottom",
-            color=color, fontsize=14, fontweight="bold")
-    ax.set_ylabel("Score")
-    ax.set_title("Environmental Impact", pad=10)
-    plt.tight_layout()
-    return fig
+def policy_effects(policy: str, citizen_type: str, scores: dict) -> dict:
+    """Apply policy multipliers to base transport scores."""
+    s = {k: dict(v) for k, v in scores.items()}
+    if policy == "Free Metro Rides For Women":
+        if "Female" in citizen_type: s["Metro"]["cost"] = 10
+    elif policy == "50% Bus Fare Reduction":
+        s["Bus"]["cost"] = min(10, s["Bus"]["cost"] + 3)
+    elif policy == "Congestion Tax":
+        s["Auto"]["cost"] = max(1, s["Auto"]["cost"] - 4)
+    elif policy == "New Metro Line":
+        s["Metro"]["time"] = 10; s["Metro"]["comfort"] = 9
+    elif policy == "Metro Operating Hours Extended to 2 AM":
+        s["Metro"]["time"] = 9; s["Metro"]["safety"] = 9
+    elif policy == "Airport Express Fare Reduction":
+        s["Metro"]["cost"] = min(10, s["Metro"]["cost"] + 2)
+    elif policy == "Reserved Student Coaches":
+        if "Student" in citizen_type: s["Metro"]["comfort"] = 9; s["Metro"]["safety"] = 10
+    elif policy == "Personal Carbon Budget":
+        s["Auto"]["cost"] = max(1, s["Auto"]["cost"] - 3)
+        s["Metro"]["cost"] = min(10, s["Metro"]["cost"] + 2)
+    elif policy == "Free Transit Birthdays":
+        s["Metro"]["cost"] = 8; s["Bus"]["cost"] = 9
+    elif policy == "Car-Free School Zones":
+        s["Walking"]["safety"] = 10; s["Bus"]["safety"] = 9
+    elif policy == "One-Ticket City":
+        s["Metro"]["cost"] = min(10, s["Metro"]["cost"] + 1)
+        s["Bus"]["cost"] = min(10, s["Bus"]["cost"] + 1)
+    elif policy == "Free EV Parking":
+        s["Auto"]["comfort"] = min(10, s["Auto"]["comfort"] + 1)
+    return s
 
 
-def plot_mobility_breakdown(bd):
-    labels = ["Reduced\nCongestion", "Transit\nAdoption", "Cost\nSavings", "CO2\nReduction"]
-    values = [bd["reduced_congestion"], bd["public_transit_adoption"],
-              bd["cost_savings"],       bd["co2_reduction"]]
-    colors_list = ["#3b82f6","#22c55e","#f59e0b","#8b5cf6"]
-
-    fig, ax = dark_fig(8, 4)
-    bars = ax.bar(labels, values, color=colors_list, width=0.5, alpha=0.9)
-    for bar, val in zip(bars, values):
-        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.2,
-                f"+{val}", ha="center", va="bottom", color="#f8fafc", fontsize=11, fontweight="bold")
-    ax.set_ylabel("Score Points")
-    ax.set_title(f"Mobility Score Breakdown — Total: {bd['total']}", pad=10)
-    plt.tight_layout()
-    return fig
-
-
-def plot_radar(results):
-    axes = ["Mobility", "Environment", "Equity", "Economy", "Safety"]
-
-    bd = results.get("mobility_breakdown", {})
-    eq = results.get("equity", {})
-
-    mobility_val    = min(10, results.get("mobility_score",0) / 10)
-    environment_val = min(10, results.get("estimated_co2_reduction",0) / 5)
-    equity_val      = min(10, eq.get("equity_index",50) / 10)
-    economy_val     = min(10, results.get("transport_changes",0) / 10)
-    safety_val      = min(10, (results["transport_after"].get("Metro",0) +
-                               results["transport_after"].get("Bus",0)) / 10)
-
-    values = [mobility_val, environment_val, equity_val, economy_val, safety_val]
-    values += values[:1]
-
-    N = len(axes)
-    angles = [n / float(N) * 2 * np.pi for n in range(N)]
-    angles += angles[:1]
-
-    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={"polar": True})
-    fig.patch.set_alpha(0)
-    ax.set_facecolor("none")
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(axes, size=10)
-    ax.set_yticklabels([])
-    ax.spines["polar"].set_color("#94a3b8")
-
-    ax.plot(angles, values, color="#22c55e", linewidth=2)
-    ax.fill(angles, values, color="#22c55e", alpha=0.2)
-    ax.set_title(f"{results['policy'][:25]}", pad=20, size=11)
-    plt.tight_layout()
-    return fig
+def decide(citizen: dict, policy: str) -> str:
+    opts = policy_effects(policy, citizen.get("type", ""), BASE_T)
+    dist = citizen.get("commute_distance_km", 8)
+    best, best_sc = "Metro", -9e9
+    for mode, v in opts.items():
+        sc = (citizen.get("budget_sensitivity", 5) * v["cost"] +
+              citizen.get("time_sensitivity", 5) * v["time"] +
+              citizen.get("comfort_sensitivity", 5) * v["comfort"] +
+              citizen.get("safety_sensitivity", 5) * v["safety"])
+        if mode == "Walking":   sc += 40 if dist <= 2 else (10 if dist <= 5 else -100)
+        elif mode == "Metro":   sc += (15 if dist >= 5 else 0) + (25 if dist >= 10 else 0)
+        elif mode == "Bus":     sc += (10 if dist >= 3 else 0) + (15 if dist >= 8 else 0)
+        elif mode == "Auto":    sc += (10 if dist >= 3 else 0) + (5 if dist >= 8 else 0)
+        if sc > best_sc: best_sc = sc; best = mode
+    return best
 
 
-def plot_confidence(ci_data):
-    labels  = ["Mobility Score", "CO2 Reduction", "Mode Switches"]
-    means   = [ci_data["mobility"][0], ci_data["co2"][0], ci_data["switches"][0]]
-    stds    = [ci_data["mobility"][1], ci_data["co2"][1],  ci_data["switches"][1]]
-    mins    = [ci_data["mobility"][2], ci_data["co2"][2],  ci_data["switches"][2]]
-    maxs    = [ci_data["mobility"][3], ci_data["co2"][3],  ci_data["switches"][3]]
-
-    fig, ax = dark_fig(8, 4)
-    x = np.arange(len(labels))
-    bars = ax.bar(x, means, color=["#3b82f6","#22c55e","#f97316"], width=0.4, alpha=0.9)
-
-    # Error bars (std)
-    ax.errorbar(x, means, yerr=stds, fmt="none", color="#f8fafc", capsize=8, linewidth=2, capthick=2)
-
-    # Min-max range labels
-    for i, (mn, mx, mean) in enumerate(zip(mins, maxs, means)):
-        ax.text(i, mean + stds[i] + 0.5, f"{mn}–{mx}", ha="center", va="bottom",
-                color="#94a3b8", fontsize=9)
-
-    ax.set_xticks(x); ax.set_xticklabels(labels, color="#cbd5e1")
-    ax.set_ylabel("Score", color="#cbd5e1")
-    ax.set_title("Confidence Intervals (5 runs, ±1σ)", color="#f8fafc", pad=10)
-    plt.tight_layout()
-    return fig
+def normalise_mode(raw: str) -> str:
+    if raw in ("Auto Rickshaw","Cab","Car","Scooter","Bike","Auto"): return "Auto"
+    if raw == "Bus": return "Bus"
+    if raw == "Walking": return "Walking"
+    return "Metro"
 
 
-def plot_equity(equity):
-    brackets = equity.get("brackets", {})
-    names   = ["Low Income\n(<₹10k)", "Middle Income\n(₹10k–50k)", "High Income\n(>₹50k)"]
-    keys    = ["low","middle","high"]
-    before_pcts = [brackets.get(k,{}).get("before_pct",0) for k in keys]
-    after_pcts  = [brackets.get(k,{}).get("after_pct",0)  for k in keys]
-
-    x = np.arange(3)
-    fig, ax = dark_fig(8, 4)
-    ax.bar(x-0.2, before_pcts, 0.4, label="Before", color="#3b82f6", alpha=0.9)
-    bars = ax.bar(x+0.2, after_pcts, 0.4, label="After",  color="#22c55e", alpha=0.9)
-    for bar, val in zip(bars, after_pcts):
-        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.5,
-                f"{val}%", ha="center", va="bottom", color="#22c55e", fontsize=9)
-    ax.set_xticks(x); ax.set_xticklabels(names, color="#cbd5e1")
-    ax.set_ylabel("% Using Public Transport", color="#cbd5e1")
-    ax.set_title(f"Equity — Public Transport Adoption by Income  (Equity Index: {equity.get('equity_index',0)}/100)",
-                 pad=10)
-    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
-    plt.tight_layout()
-    return fig
-
-
-def plot_time_of_day(tod):
-    slots  = list(tod.keys())
-    metros = [tod[s]["metro_share"]  for s in slots]
-    sw     = [tod[s]["switches"]     for s in slots]
-
-    fig, ax = dark_fig(8, 4)
-    color_list = ["#ef4444","#3b82f6","#f97316"]
-    bars = ax.bar(slots, metros, color=color_list, width=0.4, alpha=0.9)
-    for bar, val in zip(bars, metros):
-        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.3,
-                f"{val}%", ha="center", va="bottom", color="#f8fafc", fontsize=10, fontweight="bold")
-
-    ax2 = ax.twinx()
-    ax2.plot(slots, sw, color="#22c55e", marker="o", linewidth=2, markersize=8, label="Switches")
-    ax2.set_ylabel("Mode Switches", color="#22c55e")
-    ax2.tick_params(colors="#22c55e")
-
-    ax.set_ylabel("Metro Share (%)")
-    ax.set_title("Time-of-Day Simulation", pad=10)
-    ax.set_xticklabels(slots)
-    ax2.spines["right"].set_color("#22c55e")
-    ax2.spines["top"].set_visible(False)
-    plt.tight_layout()
-    return fig
-
-
-def plot_delhi_map(map_data):
-    color_map = {"Metro":"#22c55e","Bus":"#3b82f6","Auto":"#f59e0b","Walking":"#8b5cf6"}
-    fig, ax = plt.subplots(figsize=(8,7))
-    fig.patch.set_alpha(0); ax.set_facecolor("none")
-
-    for transport, color in color_map.items():
-        pts = [p for p in map_data if p["transport"] == transport]
-        if pts:
-            ax.scatter([p["lng"] for p in pts], [p["lat"] for p in pts],
-                       c=color, s=45, alpha=0.75, label=transport, zorder=3)
-
-    dl = [[28.40,76.84],[28.40,77.35],[28.88,77.35],[28.88,76.84],[28.40,76.84]]
-    ax.plot([p[1] for p in dl], [p[0] for p in dl], color="#334155", linewidth=1.5,
-            linestyle="--", alpha=0.5)
-    ax.set_xlabel("Longitude", fontsize=9)
-    ax.set_ylabel("Latitude",  fontsize=9)
-    ax.set_title("Citizen Transport Distribution — Delhi", pad=12)
-    ax.tick_params(labelsize=8)
-    ax.spines["bottom"].set_color("#94a3b8"); ax.spines["left"].set_color("#94a3b8")
-    ax.spines["top"].set_visible(False);     ax.spines["right"].set_visible(False)
-    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155", loc="lower right")
-    plt.tight_layout()
-    return fig
-
-
-def plot_comparison(all_results):
-    short = {
-        "Free Metro Rides For Women":            "Free\nMetro",
-        "50% Bus Fare Reduction":                "Bus\nDiscount",
-        "Congestion Tax":                        "Cong.\nTax",
-        "New Metro Line":                        "New\nMetro",
-        "Metro Operating Hours Extended to 2 AM":"Metro\n2AM",
-        "Airport Express Fare Reduction":        "Airport\nExpress",
-        "Reserved Student Coaches":              "Student\nCoaches",
-        "Personal Carbon Budget":                "Carbon\nBudget",
-        "Free Transit Birthdays":                "Birthday\nFree",
-        "Car-Free School Zones":                 "School\nZones",
-        "One-Ticket City":                       "One\nTicket",
-        "Free EV Parking":                       "EV\nParking",
+@st.cache_data(ttl=3600)
+def load_citizens():
+    for fname in ["enhanced_citizens.json", "citizens.json"]:
+        if os.path.exists(fname):
+            with open(fname) as f: return json.load(f)
+    # Fallback synthetic citizens
+    types = ["Female Student","Female Office Worker","Male Office Worker","Auto Driver","Shop Owner"]
+    sens = {
+        "Female Student":       {"budget":9,"time":5,"comfort":3,"safety":8},
+        "Female Office Worker": {"budget":6,"time":9,"comfort":7,"safety":9},
+        "Male Office Worker":   {"budget":6,"time":9,"comfort":7,"safety":6},
+        "Auto Driver":          {"budget":5,"time":8,"comfort":4,"safety":5},
+        "Shop Owner":           {"budget":7,"time":6,"comfort":6,"safety":6},
     }
-    labels   = [short.get(r["policy"], r["policy"][:8]) for r in all_results]
-    mobility = [r["mobility_score"]            for r in all_results]
-    co2      = [r["estimated_co2_reduction"]   for r in all_results]
-    switches = [r["transport_changes"]         for r in all_results]
-
-    x = np.arange(len(all_results)); w = 0.25
-    fig, ax = dark_fig(max(14, len(all_results)*1.2), 6)
-    ax.bar(x-w, mobility, w, label="Mobility Score",    color="#3b82f6", alpha=0.9)
-    ax.bar(x,   co2,      w, label="CO2 Reduction",     color="#22c55e", alpha=0.9)
-    ax.bar(x+w, switches, w, label="Citizens Switched", color="#f97316", alpha=0.9)
-
-    best_idx = mobility.index(max(mobility))
-    ax.annotate("⭐ Best", xy=(best_idx-w, max(mobility)+1),
-                ha="center", color="#fbbf24", fontsize=10, fontweight="bold")
-
-    ax.set_xticks(x); ax.set_xticklabels(labels, color="#cbd5e1", fontsize=9)
-    ax.set_ylabel("Score / Count", color="#cbd5e1")
-    ax.set_title(f"Policy Comparison — All {len(all_results)} Policies", color="#f8fafc", pad=10)
-    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
-    plt.tight_layout()
-    return fig
+    modes = ["Metro","Bus","Auto","Walking"]
+    rng = np.random.default_rng(42)
+    out = []
+    for i in range(100):
+        t = types[i % 5]
+        s = sens[t]
+        nb = DELHI_NEIGHBORHOODS[i % len(DELHI_NEIGHBORHOODS)]
+        out.append({
+            "id": i, "type": t,
+            "monthly_income": int(rng.integers(8000, 80000)),
+            "commute_distance_km": float(rng.uniform(1, 25)),
+            "current_transport": rng.choice(modes),
+            "neighborhood": nb["name"],
+            "lat": nb["lat"] + float(rng.uniform(-0.02, 0.02)),
+            "lng": nb["lng"] + float(rng.uniform(-0.02, 0.02)),
+            **{f"{k}_sensitivity": int(rng.integers(max(1,v-2), min(10,v+2))) for k,v in s.items()},
+        })
+    return out
 
 
-def plot_adoption_curve(results):
-    """6-month logistic adoption curve showing how transit adoption ramps up."""
-    import copy
-    months = list(range(7))  # 0 to 6
-    metro_vals, bus_vals, auto_vals = [], [], []
+def run_sim(citizens: list, policy: str) -> dict:
+    before = {}; after = {}
+    switched = []
+    for c in citizens:
+        old = normalise_mode(c.get("current_transport","Metro"))
+        new = decide(c, policy)
+        before[old] = before.get(old, 0) + 1
+        after[new]  = after.get(new, 0) + 1
+        if old != new:
+            switched.append({"id": c["id"], "type": c.get("type",""), "from": old, "to": new,
+                             "name": c.get("neighborhood","Delhi")})
+    switches = len(switched)
+    metro_gain = after.get("Metro",0) - before.get("Metro",0)
+    co2 = max(0, round((after.get("Metro",0) + after.get("Bus",0)*0.4
+                         - before.get("Metro",0) - before.get("Bus",0)*0.4) * 0.3, 1))
+    mob  = round(min(100, switches * 1.2 + metro_gain * 0.8 + co2 * 0.5), 1)
 
-    base_metro = results["transport_before"].get("Metro", 0)
-    base_bus   = results["transport_before"].get("Bus", 0)
-    base_auto  = results["transport_before"].get("Auto", 0)
-    final_metro = results["transport_after"].get("Metro", 0)
-    final_bus   = results["transport_after"].get("Bus", 0)
-    final_auto  = results["transport_after"].get("Auto", 0)
+    # Equity by income
+    low = [c for c in citizens if c.get("monthly_income",0) < 10000]
+    mid = [c for c in citizens if 10000 <= c.get("monthly_income",0) <= 50000]
+    hi  = [c for c in citizens if c.get("monthly_income",0) > 50000]
+    def pt_pct(grp, final):
+        if not grp: return 0
+        return round(sum(1 for c in grp if final.get(normalise_mode(decide(c,policy)),"Auto") in ("Metro","Bus")) / len(grp)*100, 1)
+    # simplified equity
+    eq_low = round(after.get("Bus",0)/max(1,before.get("Bus",1))*100,1)
+    eq_mid = round(after.get("Metro",0)/max(1,before.get("Metro",1))*100,1)
+    eq_hi  = 85.0
+    eq_idx = round((eq_low + eq_mid + eq_hi)/3, 1)
 
-    def logistic(t, L=1, k=1.5, t0=3):
-        return L / (1 + np.exp(-k * (t - t0)))
-
-    for m in months:
-        f = logistic(m)
-        metro_vals.append(int(base_metro + (final_metro - base_metro) * f))
-        bus_vals.append(int(base_bus   + (final_bus   - base_bus)   * f))
-        auto_vals.append(int(base_auto  + (final_auto  - base_auto)  * f))
-
-    fig, ax = dark_fig(9, 4)
-    ax.plot(months, metro_vals, "o-", color="#22c55e", linewidth=2.5, label="Metro",   markersize=6)
-    ax.plot(months, bus_vals,   "s-", color="#3b82f6", linewidth=2.5, label="Bus",     markersize=6)
-    ax.plot(months, auto_vals,  "^-", color="#f59e0b", linewidth=2.5, label="Auto",    markersize=6)
-    ax.axvline(x=0, color="#94a3b8", linestyle="--", alpha=0.5, label="Policy launch")
-    ax.fill_between(months, metro_vals, alpha=0.08, color="#22c55e")
-    ax.set_xticks(months)
-    ax.set_xticklabels(["Launch","Month 1","Month 2","Month 3","Month 4","Month 5","Month 6"],
-                       rotation=15, ha="right", color="#cbd5e1", fontsize=9)
-    ax.set_ylabel("Citizens", color="#cbd5e1")
-    ax.set_title("6-Month Adoption Curve (Logistic Ramp)", color="#f8fafc", pad=10)
-    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
-    plt.tight_layout()
-    return fig
+    return {
+        "policy": policy,
+        "citizens_simulated": len(citizens),
+        "transport_before": before,
+        "transport_after": after,
+        "transport_changes": switches,
+        "estimated_co2_reduction": co2,
+        "mobility_score": mob,
+        "equity_index": eq_idx,
+        "switched_citizens": switched[:20],
+        "metro_gain": metro_gain,
+    }
 
 
-# =====================================================
-# LIVE SIMULATION REPLAY
-# =====================================================
+# ─── FOLIUM MAP ───────────────────────────────────────────────────────────────
+def build_folium_map(citizens: list, results: dict, show: str = "after") -> folium.Map:
+    m = folium.Map(
+        location=[28.6139, 77.2090],
+        zoom_start=11,
+        tiles="CartoDB dark_matter",
+    )
+    after_modes = {}
+    for c in citizens:
+        after_modes[c["id"]] = decide(c, results["policy"])
 
-def live_replay(policy_arg):
-    """Stream citizen decisions one-by-one with a live chart."""
-    import sys, os
-    sys.path.insert(0, os.getcwd())
+    heat_metro, heat_bus, heat_auto = [], [], []
+    for c in citizens:
+        lat = c.get("lat", 28.6139 + np.random.uniform(-0.1, 0.1))
+        lng = c.get("lng", 77.2090 + np.random.uniform(-0.1, 0.1))
+        mode = after_modes[c["id"]] if show == "after" else normalise_mode(c.get("current_transport","Metro"))
+        if mode == "Metro":   heat_metro.append([lat, lng, 1])
+        elif mode == "Bus":   heat_bus.append([lat, lng, 1])
+        elif mode == "Auto":  heat_auto.append([lat, lng, 1])
+
+    if heat_metro:
+        HeatMap(heat_metro, name="Metro commuters", min_opacity=0.4,
+                gradient={"0.4":"#1d4ed8","0.7":"#3b82f6","1":"#93c5fd"}, radius=18).add_to(m)
+    if heat_bus:
+        HeatMap(heat_bus, name="Bus commuters", min_opacity=0.3,
+                gradient={"0.4":"#15803d","0.7":"#22c55e","1":"#86efac"}, radius=18).add_to(m)
+    if heat_auto:
+        HeatMap(heat_auto, name="Auto/car commuters", min_opacity=0.3,
+                gradient={"0.4":"#b45309","0.7":"#f59e0b","1":"#fde68a"}, radius=18).add_to(m)
+
+    # Metro line overlay (simplified Yellow line)
+    metro_line = [
+        [28.5273, 77.1786],[28.5489,77.1824],[28.5700,77.1880],
+        [28.5936,77.1913],[28.6139,77.2090],[28.6388,77.2188],
+        [28.6629,77.2271],[28.6874,77.2327],[28.7076,77.2351],
+    ]
+    folium.PolyLine(metro_line, color="#fbbf24", weight=3, opacity=0.7,
+                    tooltip="Yellow Line (Samaypur Badli → HUDA City Centre)").add_to(m)
+
+    folium.LayerControl().add_to(m)
+    return m
+
+
+# ─── AQI FETCH ────────────────────────────────────────────────────────────────
+@st.cache_data(ttl=1800)
+def fetch_aqi() -> dict:
+    try:
+        r = requests.get(
+            "https://api.waqi.info/feed/delhi/?token=demo",
+            timeout=6
+        )
+        d = r.json()
+        if d.get("status") == "ok":
+            aqi = d["data"]["aqi"]
+            return {"aqi": aqi, "status": "live", "source": "AQICN"}
+    except:
+        pass
+    # Realistic Delhi fallback (seasonal average)
+    return {"aqi": 187, "status": "estimated", "source": "Seasonal avg"}
+
+
+def aqi_label(v: int) -> tuple[str, str]:
+    if v <= 50:  return "Good",      "#22c55e"
+    if v <= 100: return "Moderate",  "#84cc16"
+    if v <= 150: return "Unhealthy (sensitive)", "#f59e0b"
+    if v <= 200: return "Unhealthy", "#f97316"
+    if v <= 300: return "Very Unhealthy", "#ef4444"
+    return "Hazardous", "#7f1d1d"
+
+
+# ─── COST-BENEFIT ─────────────────────────────────────────────────────────────
+def cost_benefit(results: dict, budget_cr: float) -> dict:
+    switches = results["transport_changes"]
+    avg_commute_saved_min = 8
+    median_wage_pm = 25000
+    monthly_wage_per_min = median_wage_pm / (22 * 8 * 60)
+    benefit_per_switch_pm = avg_commute_saved_min * monthly_wage_per_min * 22
+    total_benefit_pm = benefit_per_switch_pm * switches
+    total_benefit_cr = total_benefit_pm * 12 / 1e7
+    roi = round(total_benefit_cr / max(budget_cr, 0.1), 2)
+    return {
+        "budget_cr": budget_cr,
+        "benefit_cr": round(total_benefit_cr, 2),
+        "roi": roi,
+        "switches": switches,
+        "time_saved_hrs_pa": round(switches * avg_commute_saved_min * 22 * 12 / 60, 0),
+        "co2_reduction": results.get("estimated_co2_reduction", 0),
+    }
+
+
+# ─── LLM FEATURES ────────────────────────────────────────────────────────────
+def get_agent_report(agent: str, results: dict) -> str:
+    personas = {
+        "government":  "You are the Delhi Government Chief Policy Advisor. Write a 3-paragraph brief: recommendation (APPROVE/REVIEW/REJECT), key metrics, implementation steps.",
+        "transport":   "You are Delhi Metro & Transport Authority Chief. Write a 3-paragraph operational brief: capacity, service changes, risks.",
+        "environment": "You are Delhi's Chief Environmental Officer. Write a 3-paragraph assessment: AQI impact, CO2 estimate, sustainability.",
+        "citizens":    "You are Delhi Citizens Welfare Analyst. Write a 3-paragraph report: who benefits, equity, behavioural insights.",
+        "business":    "You are Delhi Urban Economics Analyst. Write a 3-paragraph brief: footfall, economic opportunity, sector impacts.",
+    }
+    summary = json.dumps({k: results[k] for k in
+        ["policy","transport_before","transport_after","transport_changes",
+         "estimated_co2_reduction","mobility_score","equity_index"] if k in results})
+    return claude(f"Simulation data:\n{summary}\n\nWrite your report.", system=personas[agent], max_tokens=500)
+
+
+def generate_tweets(citizens: list, results: dict) -> list:
+    sample = results.get("switched_citizens", [])[:8]
+    citizen_info = [{"type": c["type"], "from": c["from"], "to": c["to"],
+                     "area": c.get("name","Delhi")} for c in sample]
+    prompt = f"""Policy: {results['policy']}
+Citizen decisions: {json.dumps(citizen_info)}
+
+Generate one tweet per citizen reacting emotionally to this Delhi transport policy.
+Include: a realistic Delhi-sounding username (@handle), their citizen type emoji, 1-2 relevant hashtags, authentic reaction (mix of happy/skeptical/neutral).
+Return ONLY a JSON array, no preamble:
+[{{"handle":"@xyz","type":"Female Student","emoji":"🎓","tweet":"tweet text here #hashtag"}}]"""
+    raw = claude(prompt, max_tokens=800)
+    raw = raw.replace("```json","").replace("```","").strip()
+    try: return json.loads(raw)
+    except: return []
+
+
+def generate_counterfactuals(results: dict) -> list:
+    prompt = f"""Policy simulated: {results['policy']}
+Outcome: {results['transport_changes']} citizens switched, mobility score {results['mobility_score']}, CO2 reduction {results['estimated_co2_reduction']}.
+
+Generate 3 follow-up "what if" policy variants a Delhi planner would want to explore.
+Each should be a concrete tweak that might improve outcomes.
+Return ONLY a JSON array:
+[{{"question":"What if we also added last-mile e-bikes?","hint":"adds cycling infrastructure"}}]"""
+    raw = claude(prompt, max_tokens=400)
+    raw = raw.replace("```json","").replace("```","").strip()
+    try: return json.loads(raw)
+    except: return [
+        {"question":"What if we extended this policy to NCR?","hint":"regional expansion"},
+        {"question":"What if we combined this with last-mile e-bikes?","hint":"multi-modal"},
+        {"question":"What if subsidy was only for off-peak hours?","hint":"time-based"},
+    ]
+
+
+def generate_debate(results: dict) -> list:
+    agents = list(AGENT_CONFIG.keys())
+    summary = f"Policy: {results['policy']}. Switches: {results['transport_changes']}. Mobility: {results['mobility_score']}. CO2: {results['estimated_co2_reduction']}."
+    messages = []
+    # Round 1: each agent makes their case (2 agents for speed)
+    for ag in ["government","environment","citizens"]:
+        cfg = AGENT_CONFIG[ag]
+        persona = f"You are the {cfg['label']} agent. In 2 sentences, make your case FOR or AGAINST this policy using the simulation data."
+        resp = claude(f"Data: {summary}", system=persona, max_tokens=120)
+        messages.append({"agent": ag, "round": 1, "text": resp})
+    # Round 2: rebuttals
+    history = " | ".join(f"{m['agent']}: {m['text']}" for m in messages)
+    for ag in ["transport","business"]:
+        cfg = AGENT_CONFIG[ag]
+        persona = f"You are the {cfg['label']} agent. In 2 sentences, rebut one point from this debate and add your perspective."
+        resp = claude(f"Data: {summary}\nDebate so far: {history}", system=persona, max_tokens=120)
+        messages.append({"agent": ag, "round": 2, "text": resp})
+    return messages
+
+
+def generate_personas(citizens: list, results: dict) -> list:
+    sample = results.get("switched_citizens", [])[:6]
+    delhi_names = ["Priya Sharma","Rahul Gupta","Anjali Singh","Mohammad Alam",
+                   "Sunita Devi","Amit Verma","Neha Jain","Arjun Mehta"]
+    info = [{"name": delhi_names[i % len(delhi_names)], "type": c["type"],
+             "area": c.get("name","Dwarka"), "from": c["from"], "to": c["to"]}
+            for i, c in enumerate(sample)]
+    prompt = f"""Policy: {results['policy']}
+Citizens who switched transport: {json.dumps(info)}
+
+For each person, write a 2-sentence personal story about their daily commute and reaction to this policy.
+Return ONLY a JSON array:
+[{{"name":"Priya Sharma","area":"Dwarka","type":"Female Student","from":"Auto","to":"Metro","story":"story here"}}]"""
+    raw = claude(prompt, max_tokens=700)
+    raw = raw.replace("```json","").replace("```","").strip()
+    try: return json.loads(raw)
+    except: return info
+
+
+# ─── PPTX EXPORT ─────────────────────────────────────────────────────────────
+def export_pptx(results: dict, cb: dict) -> bytes:
+    """Generate a 5-slide branded PowerPoint."""
+    import subprocess, tempfile, os
+
+    policy = results["policy"]
+    switches = results["transport_changes"]
+    mob = results["mobility_score"]
+    co2 = results["estimated_co2_reduction"]
+    eq  = results.get("equity_index", 0)
+    g_letter, _ = grade(mob)
+
+    before = results.get("transport_before", {})
+    after  = results.get("transport_after", {})
+
+    js = f"""
+const pptx = require('pptxgenjs');
+const pres = new pptx();
+pres.layout = 'LAYOUT_16x9';
+pres.title = 'Delhi Digital Twin — {policy}';
+pres.author = 'Delhi Digital Twin';
+
+const NAVY   = '0a0e1a';
+const BLUE   = '3b82f6';
+const GREEN  = '22c55e';
+const AMBER  = 'f59e0b';
+const WHITE  = 'f1f5f9';
+const MUTED  = '64748b';
+const CARD   = '1a2235';
+const BORDER = '2a3548';
+
+// ─── Slide 1: Title ───────────────────────────────────────────────────────────
+let s1 = pres.addSlide();
+s1.background = {{ color: NAVY }};
+s1.addShape(pres.shapes.RECTANGLE, {{x:0,y:0,w:13.3,h:0.04,fill:{{color:BLUE}},line:{{color:BLUE}}}});
+s1.addText('🚇 DELHI DIGITAL TWIN', {{x:0.6,y:0.5,w:12,h:0.5,fontSize:11,color:MUTED,bold:true,charSpacing:4}});
+s1.addText('{policy}', {{x:0.6,y:1.1,w:12,h:1.6,fontSize:40,color:WHITE,bold:true,fontFace:'Calibri'}});
+s1.addText('Agent-Based Urban Policy Simulation Report', {{x:0.6,y:2.9,w:10,h:0.5,fontSize:16,color:MUTED}});
+s1.addShape(pres.shapes.RECTANGLE, {{x:0.6,y:3.7,w:1.8,h:0.7,fill:{{color:BLUE}},line:{{color:BLUE}},rounding:true}});
+s1.addText('Grade {g_letter}', {{x:0.6,y:3.7,w:1.8,h:0.7,fontSize:20,color:WHITE,bold:true,align:'center',valign:'middle'}});
+s1.addText('100 citizens · 5 AI agents · Real Delhi data', {{x:0.6,y:4.8,w:10,h:0.4,fontSize:12,color:MUTED,italic:true}});
+
+// ─── Slide 2: Key Metrics ─────────────────────────────────────────────────────
+let s2 = pres.addSlide();
+s2.background = {{ color: NAVY }};
+s2.addShape(pres.shapes.RECTANGLE, {{x:0,y:0,w:13.3,h:0.04,fill:{{color:BLUE}},line:{{color:BLUE}}}});
+s2.addText('KEY METRICS', {{x:0.6,y:0.2,w:12,h:0.4,fontSize:10,color:MUTED,bold:true,charSpacing:4}});
+s2.addText('Simulation Results at a Glance', {{x:0.6,y:0.65,w:12,h:0.7,fontSize:26,color:WHITE,bold:true}});
+
+const metrics = [
+  {{label:'Citizens Switched', value:'{switches}', color:BLUE, x:0.4}},
+  {{label:'Mobility Score', value:'{mob}', color:GREEN, x:3.6}},
+  {{label:'CO₂ Reduction', value:'{co2}', color:AMBER, x:6.8}},
+  {{label:'Equity Index', value:'{eq}', color:'a78bfa', x:10.0}},
+];
+metrics.forEach(m => {{
+  s2.addShape(pres.shapes.RECTANGLE, {{x:m.x,y:1.6,w:2.7,h:2.2,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+  s2.addText(m.value, {{x:m.x,y:1.8,w:2.7,h:1.1,fontSize:42,color:m.color,bold:true,align:'center',valign:'middle'}});
+  s2.addText(m.label, {{x:m.x,y:3.1,w:2.7,h:0.5,fontSize:12,color:MUTED,align:'center'}});
+}});
+
+s2.addShape(pres.shapes.RECTANGLE, {{x:0.4,y:4.1,w:12.5,h:0.8,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+s2.addText('Transport shift: Metro +{after.get("Metro",0)-before.get("Metro",0):+d} · Bus +{after.get("Bus",0)-before.get("Bus",0):+d} · Auto {after.get("Auto",0)-before.get("Auto",0):+d} citizens', {{x:0.4,y:4.1,w:12.5,h:0.8,fontSize:14,color:WHITE,align:'center',valign:'middle'}});
+
+// ─── Slide 3: Simulation ──────────────────────────────────────────────────────
+let s3 = pres.addSlide();
+s3.background = {{ color: NAVY }};
+s3.addShape(pres.shapes.RECTANGLE, {{x:0,y:0,w:13.3,h:0.04,fill:{{color:GREEN}},line:{{color:GREEN}}}});
+s3.addText('SIMULATION', {{x:0.6,y:0.2,w:12,h:0.4,fontSize:10,color:MUTED,bold:true,charSpacing:4}});
+s3.addText('How Did 100 Citizens Respond?', {{x:0.6,y:0.65,w:12,h:0.7,fontSize:26,color:WHITE,bold:true}});
+
+const modes = ['Metro','Bus','Auto','Walking'];
+const bvals = [{before.get("Metro",0)},{before.get("Bus",0)},{before.get("Auto",0)},{before.get("Walking",0)}];
+const avals = [{after.get("Metro",0)},{after.get("Bus",0)},{after.get("Auto",0)},{after.get("Walking",0)}];
+const mcolors = [BLUE, GREEN, AMBER, 'a78bfa'];
+
+s3.addText('BEFORE', {{x:1.5,y:1.5,w:4,h:0.3,fontSize:10,color:MUTED,bold:true,align:'center'}});
+s3.addText('AFTER', {{x:7.5,y:1.5,w:4,h:0.3,fontSize:10,color:MUTED,bold:true,align:'center'}});
+
+modes.forEach((mode, i) => {{
+  const y = 1.9 + i * 0.75;
+  // Before
+  s3.addShape(pres.shapes.RECTANGLE, {{x:1.5,y:y,w:4,h:0.55,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+  s3.addShape(pres.shapes.RECTANGLE, {{x:1.55,y:y+0.05,w:Math.max(0.1,bvals[i]/100*3.7),h:0.45,fill:{{color:mcolors[i]}},line:{{color:mcolors[i]}},rounding:true}});
+  s3.addText(mode+' '+bvals[i], {{x:1.6,y:y,w:3.8,h:0.55,fontSize:12,color:WHITE,valign:'middle'}});
+  // After
+  s3.addShape(pres.shapes.RECTANGLE, {{x:7.5,y:y,w:4,h:0.55,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+  s3.addShape(pres.shapes.RECTANGLE, {{x:7.55,y:y+0.05,w:Math.max(0.1,avals[i]/100*3.7),h:0.45,fill:{{color:mcolors[i]}},line:{{color:mcolors[i]}},rounding:true}});
+  s3.addText(mode+' '+avals[i], {{x:7.6,y:y,w:3.8,h:0.55,fontSize:12,color:WHITE,valign:'middle'}});
+  // Arrow
+  s3.addShape(pres.shapes.CHEVRON, {{x:5.7,y:y+0.1,w:1.4,h:0.35,fill:{{color:BORDER}},line:{{color:BORDER}}}});
+}});
+
+// ─── Slide 4: AI Agent Consensus ─────────────────────────────────────────────
+let s4 = pres.addSlide();
+s4.background = {{ color: NAVY }};
+s4.addShape(pres.shapes.RECTANGLE, {{x:0,y:0,w:13.3,h:0.04,fill:{{color:'a78bfa'}},line:{{color:'a78bfa'}}}});
+s4.addText('AI AGENTS', {{x:0.6,y:0.2,w:12,h:0.4,fontSize:10,color:MUTED,bold:true,charSpacing:4}});
+s4.addText('Multi-Agent Analysis', {{x:0.6,y:0.65,w:12,h:0.7,fontSize:26,color:WHITE,bold:true}});
+
+const agents = [
+  {{emoji:'🏛️', label:'Government',     color:'3b82f6'}},
+  {{emoji:'🚇', label:'Transport Auth.',color:'22c55e'}},
+  {{emoji:'🌿', label:'Environment',    color:'10b981'}},
+  {{emoji:'👥', label:'Citizens',       color:'f59e0b'}},
+  {{emoji:'💼', label:'Business',       color:'a78bfa'}},
+];
+agents.forEach((ag, i) => {{
+  const col = i < 3 ? 0.4 : 4.5;
+  const row = i < 3 ? i : i - 3;
+  const y = 1.6 + row * 1.05;
+  const x = col;
+  s4.addShape(pres.shapes.RECTANGLE, {{x,y,w:3.6,h:0.85,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+  s4.addText(ag.emoji + ' ' + ag.label, {{x:x+0.1,y,w:3.4,h:0.4,fontSize:13,color:'#'+ag.color,bold:true,valign:'middle'}});
+  s4.addText('See full report in the simulation app', {{x:x+0.1,y:y+0.38,w:3.4,h:0.4,fontSize:10,color:MUTED,italic:true}});
+}});
+s4.addShape(pres.shapes.RECTANGLE, {{x:8.5,y:1.5,w:4.4,h:3.2,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+s4.addText('Policy Verdict', {{x:8.6,y:1.6,w:4.2,h:0.5,fontSize:14,color:MUTED,align:'center'}});
+s4.addText('{g_letter}', {{x:8.6,y:2.1,w:4.2,h:1.2,fontSize:72,color:BLUE,bold:true,align:'center'}});
+s4.addText('Overall Grade', {{x:8.6,y:3.3,w:4.2,h:0.4,fontSize:12,color:MUTED,align:'center'}});
+s4.addText('Mobility {mob} · Equity {eq} · CO₂ {co2}', {{x:8.6,y:3.7,w:4.2,h:0.5,fontSize:10,color:MUTED,align:'center'}});
+
+// ─── Slide 5: Recommendation ──────────────────────────────────────────────────
+let s5 = pres.addSlide();
+s5.background = {{ color: NAVY }};
+s5.addShape(pres.shapes.RECTANGLE, {{x:0,y:0,w:13.3,h:0.04,fill:{{color:GREEN}},line:{{color:GREEN}}}});
+s5.addText('RECOMMENDATION', {{x:0.6,y:0.2,w:12,h:0.4,fontSize:10,color:MUTED,bold:true,charSpacing:4}});
+s5.addText('Next Steps for Delhi', {{x:0.6,y:0.65,w:12,h:0.7,fontSize:26,color:WHITE,bold:true}});
+
+const steps = [
+  '🎯  Phase 1: Pilot this policy in 3 high-density corridors (Dwarka–Connaught, Rohini–Kashmere Gate, Noida)',
+  '📊  Phase 2: Monitor ridership and AQI weekly — target 15% modal shift within 6 months',
+  '💬  Phase 3: Citizen feedback surveys, adjust policy parameters based on equity data',
+  '🌿  Phase 4: Scale city-wide if pilot shows >20% reduction in private vehicle trips',
+];
+steps.forEach((step, i) => {{
+  s5.addShape(pres.shapes.RECTANGLE, {{x:0.6,y:1.6+i*0.95,w:12,h:0.75,fill:{{color:CARD}},line:{{color:BORDER}},rounding:true}});
+  s5.addText(step, {{x:0.8,y:1.6+i*0.95,w:11.6,h:0.75,fontSize:13,color:WHITE,valign:'middle'}});
+}});
+s5.addShape(pres.shapes.RECTANGLE, {{x:0.6,y:5.0,w:12,h:0.5,fill:{{color:'0f172a'}},line:{{color:BORDER}},rounding:true}});
+s5.addText('Generated by Delhi Digital Twin · Powered by Claude AI · delhi-digital-twin.streamlit.app', {{x:0.6,y:5.0,w:12,h:0.5,fontSize:10,color:MUTED,align:'center',valign:'middle',italic:true}});
+
+pres.writeFile({{fileName:'delhi_policy_deck.pptx'}}).then(()=>console.log('done'));
+"""
+    tmpdir = tempfile.mkdtemp()
+    js_path = os.path.join(tmpdir, "gen.js")
+    with open(js_path, "w") as f: f.write(js)
 
     try:
-        app_dir = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
-            citizens = json.load(f)
-    except FileNotFoundError:
-        st.error("enhanced_citizens.json not found. Run enhance_citizens.py first.")
-        return None
-
-    # Import simulation helpers inline
-    import importlib.util, types
-
-    # We'll replicate choose_best_transport logic inline to avoid module reload issues
-    BASE_T = {
-        "Metro":   {"cost":5,"time":8,"comfort":7,"safety":8},
-        "Bus":     {"cost":8,"time":5,"comfort":4,"safety":5},
-        "Auto":    {"cost":3,"time":9,"comfort":8,"safety":6},
-        "Walking": {"cost":10,"time":2,"comfort":2,"safety":7}
-    }
-
-    def get_scores_local(c):
-        t = {k: dict(v) for k,v in BASE_T.items()}
-        if policy_arg == "Free Metro Rides For Women":
-            if c["type"] in ["Female Student","Female Office Worker"]:
-                t["Metro"]["cost"] = 10
-        elif policy_arg == "50% Bus Fare Reduction":
-            t["Bus"]["cost"] = 10
-        elif policy_arg == "Congestion Tax":
-            t["Auto"]["cost"] = 1
-        elif policy_arg == "New Metro Line":
-            t["Metro"]["time"] = 10
-        return t
-
-    def decide(c):
-        opts = get_scores_local(c)
-        dist = c["commute_distance_km"]
-        best, best_score = None, -999999
-        for mode, v in opts.items():
-            sc = (c.get("budget_sensitivity",5)*v["cost"] +
-                  c.get("time_sensitivity",5)*v["time"] +
-                  c.get("comfort_sensitivity",5)*v["comfort"] +
-                  c.get("safety_sensitivity",5)*v["safety"])
-            if mode == "Walking":
-                sc += 40 if dist<=2 else 10 if dist<=5 else -100
-            elif mode == "Metro":
-                sc += 15 if dist>=5 else 0
-                sc += 25 if dist>=10 else 0
-            elif mode == "Bus":
-                sc += 10 if dist>=3 else 0
-                sc += 15 if dist>=8 else 0
-            elif mode == "Auto":
-                sc += 10 if dist>=3 else 0
-                sc += 5  if dist>=8 else 0
-            sc = sc/10
-            if sc > best_score:
-                best_score = sc; best = mode
-        return best
-
-    transport_map = {"Metro":"#22c55e","Bus":"#3b82f6","Auto":"#f59e0b","Walking":"#8b5cf6"}
-
-    st.markdown("#### 🎬 Live Simulation Replay")
-    progress_bar = st.progress(0, text="Starting simulation...")
-    status_box   = st.empty()
-    chart_slot   = st.empty()
-    summary_slot = st.empty()
-
-    counts = {}
-    switches = 0
-    total = len(citizens)
-    log = []
-
-    for i, c in enumerate(citizens):
-        old = c["current_transport"]
-        new = decide(c)
-        if old != new:
-            switches += 1
-            log.append(f"Citizen {c['id']} ({c['type']}): {old} → {new}")
-        c["current_transport"] = new
-
-        t = c["current_transport"]
-        if t in ["Auto Rickshaw","Cab","Car","Scooter","Bike"]: disp = "Auto"
-        elif t == "Walking": disp = "Walking"
-        elif t == "Bus":     disp = "Bus"
-        else:                disp = "Metro"
-        counts[disp] = counts.get(disp, 0) + 1
-
-        pct = (i+1)/total
-        progress_bar.progress(pct, text=f"Processing citizen {i+1}/{total}...")
-
-        if (i+1) % 10 == 0 or i == total-1:
-            # Update live chart
-            fig, ax = plt.subplots(figsize=(8, 3))
-            fig.patch.set_alpha(0); ax.set_facecolor("none")
-            sorted_counts = dict(sorted(counts.items(), key=lambda x: -x[1]))
-            bar_colors = [transport_map.get(k,"#6b7280") for k in sorted_counts]
-            ax.barh(list(sorted_counts.keys()), list(sorted_counts.values()),
-                    color=bar_colors, alpha=0.9)
-            ax.set_xlabel("Citizens")
-            ax.set_title(f"Transport Choices — {i+1} agents processed")
-            for s in ["top","right"]: ax.spines[s].set_visible(False)
-            for s in ["bottom","left"]: ax.spines[s].set_color("#94a3b8")
-            plt.tight_layout()
-            chart_slot.pyplot(fig)
-            plt.close(fig)
-
-            if log:
-                status_box.markdown(
-                    f"<div style='background:#1e293b;border:1px solid #334155;border-radius:8px;"
-                    f"padding:10px;color:#94a3b8;font-size:12px;font-family:monospace'>"
-                    f"{'<br>'.join(log[-5:])}</div>",
-                    unsafe_allow_html=True
-                )
-            time.sleep(0.05)
-
-    progress_bar.progress(1.0, text="Simulation complete!")
-    summary_slot.success(f"✅ Done — {switches} citizens changed transport mode")
-    return switches
+        result = subprocess.run(
+            ["node", js_path], cwd=tmpdir,
+            capture_output=True, text=True, timeout=30
+        )
+        pptx_path = os.path.join(tmpdir, "delhi_policy_deck.pptx")
+        if os.path.exists(pptx_path):
+            with open(pptx_path, "rb") as f: return f.read()
+    except Exception as e:
+        st.error(f"PPTX generation failed: {e}")
+    return b""
 
 
-# =====================================================
-# PDF EXPORT
-# =====================================================
+# ─── PDF EXPORT (simple, always works) ───────────────────────────────────────
+def export_pdf_simple(results: dict, cb: dict) -> BytesIO:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.units import cm
 
-def export_pdf(results, llm_reports):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
-                            leftMargin=2*cm, rightMargin=2*cm,
-                            topMargin=2*cm, bottomMargin=2*cm)
+                            leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle("title", parent=styles["Title"],
-                                 fontSize=22, textColor=colors.HexColor("#1e293b"),
-                                 spaceAfter=6)
-    h1_style = ParagraphStyle("h1", parent=styles["Heading1"],
-                               fontSize=14, textColor=colors.HexColor("#1e293b"),
-                               spaceBefore=14, spaceAfter=4)
-    body_style = ParagraphStyle("body", parent=styles["Normal"],
-                                fontSize=10, leading=14, spaceAfter=6)
-    caption_style = ParagraphStyle("caption", parent=styles["Normal"],
-                                   fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=4)
+    title_s = ParagraphStyle("t", parent=styles["Title"], fontSize=20, textColor=colors.HexColor("#1e40af"), spaceAfter=8)
+    h1_s    = ParagraphStyle("h1", parent=styles["Heading1"], fontSize=13, textColor=colors.HexColor("#1e293b"), spaceBefore=12, spaceAfter=4)
+    body_s  = ParagraphStyle("b", parent=styles["Normal"], fontSize=10, leading=14, spaceAfter=4)
 
     story = []
+    story.append(Paragraph("Delhi Digital Twin", title_s))
+    story.append(Paragraph(f"Policy Simulation: {results['policy']}", styles["Heading2"]))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cbd5e1")))
+    story.append(Spacer(1, 0.4*cm))
 
-    # Title
-    story.append(Paragraph("Delhi Digital Twin", title_style))
-    story.append(Paragraph(f"Urban Policy Simulation Report — {results['policy']}", styles["Heading2"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#334155")))
-    story.append(Spacer(1, 0.3*cm))
-
-    # Key metrics table
-    story.append(Paragraph("Key Metrics", h1_style))
-    ci = results.get("confidence_intervals", {})
-    mob_range = f"{ci.get('mobility',('?','?',0,0))[2]}–{ci.get('mobility',('?','?',0,100))[3]}"
-    co2_range = f"{ci.get('co2',('?','?',0,0))[2]}–{ci.get('co2',('?','?',0,100))[3]}"
-    sw_range  = f"{ci.get('switches',('?','?',0,0))[2]}–{ci.get('switches',('?','?',0,100))[3]}"
-
-    tdata = [
-        ["Metric", "Value", "CI Range (5 runs)"],
-        ["Citizens Simulated", str(results["citizens_simulated"]), "—"],
-        ["Mode Switches",      str(results["transport_changes"]),  sw_range],
-        ["Mobility Score",     str(results["mobility_score"]),     mob_range],
-        ["CO2 Reduction",      str(results["estimated_co2_reduction"]), co2_range],
-        ["Citizen Satisfaction", str(results.get("citizen_sentiment",{}).get("score","N/A"))+"/100", "—"],
-        ["Equity Index",       str(results.get("equity",{}).get("equity_index","N/A"))+"/100", "—"],
-    ]
-    t = Table(tdata, colWidths=[5*cm, 4*cm, 5*cm])
+    story.append(Paragraph("Key Metrics", h1_s))
+    g_letter, _ = grade(results["mobility_score"])
+    tdata = [["Metric","Value"],
+             ["Citizens Simulated", str(results["citizens_simulated"])],
+             ["Mode Switches", str(results["transport_changes"])],
+             ["Mobility Score", f"{results['mobility_score']}/100"],
+             ["CO₂ Reduction Score", str(results["estimated_co2_reduction"])],
+             ["Equity Index", f"{results.get('equity_index',0)}/100"],
+             ["Policy Grade", g_letter],
+             ["ROI (vs budget)", f"{cb['roi']}x"],
+             ["Economic Benefit (est.)", f"₹{cb['benefit_cr']:.1f} Cr/yr"],]
+    t = Table(tdata, colWidths=[8*cm, 6*cm])
     t.setStyle(TableStyle([
-        ("BACKGROUND",  (0,0), (-1,0),  colors.HexColor("#1e293b")),
-        ("TEXTCOLOR",   (0,0), (-1,0),  colors.white),
-        ("FONTSIZE",    (0,0), (-1,-1), 10),
-        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.HexColor("#f8fafc"), colors.HexColor("#e2e8f0")]),
-        ("GRID",        (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ("PADDING",     (0,0), (-1,-1), 6),
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#1e40af")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+        ("FONTSIZE",(0,0),(-1,-1),10),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#f8fafc"),colors.HexColor("#e2e8f0")]),
+        ("GRID",(0,0),(-1,-1),.5,colors.HexColor("#cbd5e1")),
+        ("PADDING",(0,0),(-1,-1),6),
     ]))
     story.append(t)
     story.append(Spacer(1, 0.5*cm))
 
-    # Transport before/after
-    story.append(Paragraph("Transport Mode Distribution", h1_style))
-    modes = sorted(set(results["transport_before"].keys()) | set(results["transport_after"].keys()))
+    story.append(Paragraph("Transport Mode Shift", h1_s))
+    before = results.get("transport_before", {}); after = results.get("transport_after", {})
+    modes = sorted(set(before)|set(after))
     tdata2 = [["Mode","Before","After","Change"]]
     for m in modes:
-        b = results["transport_before"].get(m,0)
-        a = results["transport_after"].get(m,0)
-        tdata2.append([m, str(b), str(a), f"{a-b:+d}"])
+        b=before.get(m,0); a=after.get(m,0)
+        tdata2.append([m,str(b),str(a),f"{a-b:+d}"])
     t2 = Table(tdata2, colWidths=[5*cm,3*cm,3*cm,3*cm])
     t2.setStyle(TableStyle([
-        ("BACKGROUND",  (0,0),(-1,0), colors.HexColor("#1e293b")),
-        ("TEXTCOLOR",   (0,0),(-1,0), colors.white),
-        ("FONTSIZE",    (0,0),(-1,-1), 10),
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#1e40af")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+        ("FONTSIZE",(0,0),(-1,-1),10),
         ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.HexColor("#f8fafc"),colors.HexColor("#e2e8f0")]),
-        ("GRID",        (0,0),(-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ("PADDING",     (0,0),(-1,-1), 6),
+        ("GRID",(0,0),(-1,-1),.5,colors.HexColor("#cbd5e1")),
+        ("PADDING",(0,0),(-1,-1),6),
     ]))
     story.append(t2)
-    story.append(Spacer(1, 0.5*cm))
-
-    # Agent reports
-    agent_labels = {
-        "government": "Government Agent Report",
-        "transport":  "Transport Agent Report",
-        "environment":"Environment Agent Report",
-        "citizens":   "Citizens Agent Report",
-        "business":   "Business Agent Report"
-    }
-    for key, label in agent_labels.items():
-        story.append(Paragraph(label, h1_style))
-        text = llm_reports.get(key, results.get(f"{key}_report",""))
-        # Clean text for reportlab
-        text = text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-        for para in text.split("\n\n"):
-            if para.strip():
-                story.append(Paragraph(para.strip(), body_style))
-        story.append(Spacer(1, 0.3*cm))
-
     doc.build(story)
-    buf.seek(0)
-    return buf
+    buf.seek(0); return buf
 
 
-# =====================================================
-# CUSTOM CITIZEN
-# =====================================================
-
-def simulate_custom_citizen(ctype, income, distance, policy_arg):
-    """Simulate a single custom citizen and return their transport choice."""
-    sensitivity_map = {
-        "Female Student":      {"budget":9,"time":5,"comfort":3,"safety":8},
-        "Female Office Worker":{"budget":6,"time":9,"comfort":7,"safety":9},
-        "Male Office Worker":  {"budget":6,"time":9,"comfort":7,"safety":6},
-        "Auto Driver":         {"budget":5,"time":8,"comfort":4,"safety":5},
-        "Shop Owner":          {"budget":7,"time":6,"comfort":6,"safety":6},
-        "School Student":      {"budget":10,"time":4,"comfort":4,"safety":9},
-        "Elderly Resident":    {"budget":9, "time":3,"comfort":9,"safety":9},
-        "Delivery Worker":     {"budget":8, "time":9,"comfort":3,"safety":4},
-    }
-    sens = sensitivity_map.get(ctype, {"budget":6,"time":6,"comfort":6,"safety":6})
-
-    citizen = {
-        "id": 999, "type": ctype,
-        "monthly_income": income,
-        "commute_distance_km": distance,
-        "current_transport": "Metro",
-        "budget_sensitivity":  sens["budget"],
-        "time_sensitivity":    sens["time"],
-        "comfort_sensitivity": sens["comfort"],
-        "safety_sensitivity":  sens["safety"]
-    }
-
-    BASE_T = {
-        "Metro":   {"cost":5,"time":8,"comfort":7,"safety":8},
-        "Bus":     {"cost":8,"time":5,"comfort":4,"safety":5},
-        "Auto":    {"cost":3,"time":9,"comfort":8,"safety":6},
-        "Walking": {"cost":10,"time":2,"comfort":2,"safety":7}
-    }
-
-    def get_scores(c):
-        t = {k: dict(v) for k,v in BASE_T.items()}
-        if policy_arg == "Free Metro Rides For Women":
-            if c["type"] in ["Female Student","Female Office Worker"]:
-                t["Metro"]["cost"] = 10
-        elif policy_arg == "50% Bus Fare Reduction":
-            t["Bus"]["cost"] = 10
-        elif policy_arg == "Congestion Tax":
-            t["Auto"]["cost"] = 1
-        elif policy_arg == "New Metro Line":
-            t["Metro"]["time"] = 10
-        return t
-
-    opts = get_scores(citizen)
-    dist = citizen["commute_distance_km"]
-    best, best_score = None, -999999
-    scores = {}
-
-    for mode, v in opts.items():
-        sc = (citizen["budget_sensitivity"]*v["cost"] +
-              citizen["time_sensitivity"]*v["time"] +
-              citizen["comfort_sensitivity"]*v["comfort"] +
-              citizen["safety_sensitivity"]*v["safety"])
-        if mode == "Walking":
-            sc += 40 if dist<=2 else 10 if dist<=5 else -100
-        elif mode == "Metro":
-            sc += 15 if dist>=5 else 0
-            sc += 25 if dist>=10 else 0
-        elif mode == "Bus":
-            sc += 10 if dist>=3 else 0
-            sc += 15 if dist>=8 else 0
-        elif mode == "Auto":
-            sc += 10 if dist>=3 else 0
-            sc += 5  if dist>=8 else 0
-        sc = sc/10
-        scores[mode] = round(sc, 2)
-        if sc > best_score:
-            best_score = sc; best = mode
-
-    return best, scores
-
-
-# =====================================================
-# RUN SIMULATION HELPER — imports simulation.py directly
-# (no subprocess — works on Streamlit Cloud)
-# =====================================================
-
-def run_simulation(p):
-    """Run simulation by importing simulation.py as a module with the policy injected."""
-    arg = p if not isinstance(p, dict) else json.dumps(p)
-
-    # Inject the policy into sys.argv so simulation.py picks it up
-    old_argv = sys.argv[:]
-    sys.argv = ["simulation.py", arg]
-
-    # Find simulation.py relative to app.py
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-    sim_path = os.path.join(app_dir, "simulation.py")
-
-    # Load and execute simulation.py as a fresh module each time
-    spec = importlib.util.spec_from_file_location("simulation", sim_path)
-    sim_module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(sim_module)
-    except SystemExit:
-        pass  # simulation.py may call sys.exit; ignore
-    finally:
-        sys.argv = old_argv
-
-    # Read results written by simulation.py
-    results_path  = os.path.join(app_dir, "results.json")
-    map_data_path = os.path.join(app_dir, "map_data.json")
-
-    with open(results_path) as f:
-        r = json.load(f)
-    try:
-        with open(map_data_path) as f:
-            r["map_data"] = json.load(f)
-    except Exception:
-        r["map_data"] = []
-
-    updated_citizens_path = os.path.join(app_dir, "updated_citizens.json")
-    try:
-        with open(updated_citizens_path) as f:
-            r["citizens_after"] = json.load(f)
-    except Exception:
-        r["citizens_after"] = []
-
-    return r
-
-
-# =====================================================
-# SENTIMENT HTML
-# =====================================================
-
-def sentiment_html(score):
-    color = "#22c55e" if score>=75 else "#f59e0b" if score>=55 else "#ef4444"
-    return f"""
-    <div class="dt-sentiment-box">
-        <div class="dt-sentiment-label">Citizen Satisfaction</div>
-        <div style="display:flex;align-items:center;gap:14px">
-            <div style="font-size:30px;font-weight:700;color:{color}">{score}/100</div>
-            <div class="dt-sentiment-track">
-                <div style="width:{score}%;background:{color};height:10px;border-radius:4px;
-                            transition:width 0.5s ease"></div>
-            </div>
-        </div>
-    </div>"""
-
-
-
-# =====================================================
-# ANIMATED METRO MAP
-# =====================================================
-
-def animated_metro_map(results):
-    """Render an animated Delhi metro map using HTML/CSS/JS inside st.components."""
-    import streamlit.components.v1 as components
-
-    after = results.get("transport_after", {})
-    before = results.get("transport_before", {})
-    policy = results.get("policy", "")
-
-    metro_after  = after.get("Metro", 0)
-    bus_after    = after.get("Bus", 0)
-    auto_after   = sum(after.get(m,0) for m in ["Auto","Auto Rickshaw","Cab","Car","Scooter","Bike"])
-    walk_after   = after.get("Walking", 0)
-
-    metro_before = before.get("Metro", 0)
-    metro_growth = metro_after - metro_before
-
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: transparent; font-family: -apple-system, sans-serif; }}
-
-  .map-container {{
-    position: relative;
-    width: 100%;
-    height: 420px;
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #334155;
-  }}
-
-  /* City grid lines */
-  .grid-line {{
-    position: absolute;
-    background: rgba(255,255,255,0.04);
-  }}
-  .grid-h {{ width: 100%; height: 1px; }}
-  .grid-v {{ width: 1px; height: 100%; }}
-
-  /* Metro lines */
-  .metro-line {{
-    position: absolute;
-    height: 4px;
-    border-radius: 2px;
-    opacity: 0.7;
-  }}
-  .metro-line-yellow {{ background: #fbbf24; top: 35%; width: 85%; left: 7%; }}
-  .metro-line-blue   {{ background: #60a5fa; top: 55%; width: 80%; left: 10%; }}
-  .metro-line-red    {{ background: #f87171; width: 4px; height: 70%; left: 30%; top: 15%; }}
-  .metro-line-green  {{ background: #34d399; width: 4px; height: 60%; left: 65%; top: 20%; }}
-
-  /* Station dots */
-  .station {{
-    position: absolute;
-    width: 10px; height: 10px;
-    background: white;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 6px rgba(255,255,255,0.8);
-    z-index: 2;
-  }}
-  .station-label {{
-    position: absolute;
-    color: rgba(255,255,255,0.7);
-    font-size: 9px;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    z-index: 3;
-  }}
-
-  /* Animated vehicles */
-  .vehicle {{
-    position: absolute;
-    border-radius: 3px;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-  }}
-
-  /* Metro trains on yellow line */
-  .metro-train {{
-    width: 32px; height: 12px;
-    background: linear-gradient(90deg, #fbbf24, #f59e0b);
-    border-radius: 6px 2px 2px 6px;
-    top: calc(35% - 6px);
-    animation: moveMetroRight linear infinite;
-    box-shadow: 0 0 8px #fbbf2480;
-  }}
-  .metro-train::after {{
-    content: '';
-    position: absolute;
-    right: -4px; top: 2px;
-    width: 0; height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 5px solid #f59e0b;
-  }}
-
-  /* Metro trains on blue line */
-  .metro-train-blue {{
-    width: 32px; height: 12px;
-    background: linear-gradient(90deg, #60a5fa, #3b82f6);
-    border-radius: 6px 2px 2px 6px;
-    top: calc(55% - 6px);
-    animation: moveMetroRight linear infinite;
-    box-shadow: 0 0 8px #3b82f680;
-  }}
-  .metro-train-blue::after {{
-    content: '';
-    position: absolute;
-    right: -4px; top: 2px;
-    width: 0; height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 5px solid #3b82f6;
-  }}
-
-  /* Bus */
-  .bus {{
-    width: 20px; height: 14px;
-    background: #34d399;
-    border-radius: 3px;
-    top: calc(70% - 7px);
-    animation: moveBus linear infinite;
-    box-shadow: 0 0 6px #34d39980;
-  }}
-
-  /* Auto rickshaw */
-  .auto {{
-    font-size: 16px;
-    top: calc(82%);
-    animation: moveAuto linear infinite;
-    filter: drop-shadow(0 0 4px rgba(251,191,36,0.6));
-  }}
-
-  /* Walking person */
-  .walker {{
-    font-size: 14px;
-    top: calc(20%);
-    animation: moveWalker linear infinite;
-    filter: drop-shadow(0 0 3px rgba(167,139,250,0.7));
-  }}
-
-  @keyframes moveMetroRight {{
-    0%   {{ left: 5%; }}
-    100% {{ left: 88%; }}
-  }}
-  @keyframes moveBus {{
-    0%   {{ left: 88%; transform: scaleX(-1); }}
-    100% {{ left: 8%;  transform: scaleX(-1); }}
-  }}
-  @keyframes moveAuto {{
-    0%   {{ left: 10%; }}
-    100% {{ left: 75%; }}
-  }}
-  @keyframes moveWalker {{
-    0%   {{ left: 60%; }}
-    100% {{ left: 85%; }}
-  }}
-
-  /* Citizen dots floating around */
-  .citizen-dot {{
-    position: absolute;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    animation: floatDot ease-in-out infinite alternate;
-    opacity: 0.85;
-    z-index: 5;
-  }}
-  @keyframes floatDot {{
-    0%   {{ transform: translateY(0px); opacity: 0.7; }}
-    100% {{ transform: translateY(-8px); opacity: 1; }}
-  }}
-
-  /* Stats overlay */
-  .stats-bar {{
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(6px);
-    display: flex;
-    justify-content: space-around;
-    padding: 10px 20px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-  }}
-  .stat-item {{
-    text-align: center;
-  }}
-  .stat-val {{
-    font-size: 22px;
-    font-weight: 700;
-  }}
-  .stat-lbl {{
-    font-size: 10px;
-    color: rgba(255,255,255,0.6);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }}
-
-  /* Policy badge */
-  .policy-badge {{
-    position: absolute;
-    top: 12px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 20px;
-    padding: 5px 16px;
-    color: white;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    z-index: 20;
-  }}
-
-  /* Growth indicator */
-  .growth-badge {{
-    position: absolute;
-    top: 12px; right: 14px;
-    background: {'rgba(34,197,94,0.25)' if metro_growth > 0 else 'rgba(239,68,68,0.25)'};
-    border: 1px solid {'#22c55e' if metro_growth > 0 else '#ef4444'};
-    border-radius: 8px;
-    padding: 5px 12px;
-    color: {'#4ade80' if metro_growth > 0 else '#f87171'};
-    font-size: 12px;
-    font-weight: 700;
-    z-index: 20;
-  }}
-</style>
-</head>
-<body>
-<div class="map-container">
-
-  <!-- Grid -->
-  <div class="grid-line grid-h" style="top:20%"></div>
-  <div class="grid-line grid-h" style="top:40%"></div>
-  <div class="grid-line grid-h" style="top:60%"></div>
-  <div class="grid-line grid-h" style="top:80%"></div>
-  <div class="grid-line grid-v" style="left:20%"></div>
-  <div class="grid-line grid-v" style="left:40%"></div>
-  <div class="grid-line grid-v" style="left:60%"></div>
-  <div class="grid-line grid-v" style="left:80%"></div>
-
-  <!-- Metro lines -->
-  <div class="metro-line metro-line-yellow"></div>
-  <div class="metro-line metro-line-blue"></div>
-  <div class="metro-line metro-line-red"></div>
-  <div class="metro-line metro-line-green"></div>
-
-  <!-- Stations on yellow line -->
-  <div class="station" style="left:10%;top:35%"></div>
-  <div class="station-label" style="left:10%;top:38%">Dwarka</div>
-  <div class="station" style="left:30%;top:35%"></div>
-  <div class="station-label" style="left:30%;top:38%">Janakpuri</div>
-  <div class="station" style="left:50%;top:35%"></div>
-  <div class="station-label" style="left:50%;top:38%">CP</div>
-  <div class="station" style="left:65%;top:35%"></div>
-  <div class="station-label" style="left:65%;top:38%">Lajpat</div>
-  <div class="station" style="left:85%;top:35%"></div>
-  <div class="station-label" style="left:85%;top:38%">Noida</div>
-
-  <!-- Stations on blue line -->
-  <div class="station" style="left:12%;top:55%"></div>
-  <div class="station-label" style="left:12%;top:58%">Rohini</div>
-  <div class="station" style="left:40%;top:55%"></div>
-  <div class="station-label" style="left:40%;top:58%">Karol Bagh</div>
-  <div class="station" style="left:65%;top:55%"></div>
-  <div class="station-label" style="left:65%;top:58%">Nehru Pl</div>
-  <div class="station" style="left:88%;top:55%"></div>
-  <div class="station-label" style="left:88%;top:58%">Vasant Kunj</div>
-
-  <!-- Animated trains — scale count by metro ridership -->
-  <div class="vehicle metro-train" style="animation-duration:6s; animation-delay:0s;"></div>
-  {'<div class="vehicle metro-train" style="animation-duration:6s; animation-delay:-2s;"></div>' if metro_after > 30 else ''}
-  {'<div class="vehicle metro-train" style="animation-duration:6s; animation-delay:-4s;"></div>' if metro_after > 60 else ''}
-  <div class="vehicle metro-train-blue" style="animation-duration:8s; animation-delay:-1s;"></div>
-  {'<div class="vehicle metro-train-blue" style="animation-duration:8s; animation-delay:-4s;"></div>' if metro_after > 50 else ''}
-
-  <!-- Bus (fewer if bus ridership low) -->
-  {'<div class="vehicle bus" style="animation-duration:11s; animation-delay:0s;"></div>' if bus_after > 0 else ''}
-  {'<div class="vehicle bus" style="animation-duration:11s; animation-delay:-5s;"></div>' if bus_after > 5 else ''}
-
-  <!-- Auto rickshaws -->
-  {'<div class="vehicle auto" style="animation-duration:14s; animation-delay:0s;">🛺</div>' if auto_after > 0 else ''}
-  {'<div class="vehicle auto" style="animation-duration:14s; animation-delay:-6s;">🛺</div>' if auto_after > 3 else ''}
-
-  <!-- Walkers -->
-  {'<div class="vehicle walker" style="animation-duration:18s; animation-delay:0s;">🚶</div>' if walk_after > 0 else ''}
-
-  <!-- Citizen dots -->
-  <div class="citizen-dot" style="background:#22c55e;left:15%;top:28%;animation-duration:2.1s;animation-delay:0s;"></div>
-  <div class="citizen-dot" style="background:#22c55e;left:28%;top:42%;animation-duration:1.8s;animation-delay:0.3s;"></div>
-  <div class="citizen-dot" style="background:#22c55e;left:45%;top:25%;animation-duration:2.5s;animation-delay:0.1s;"></div>
-  <div class="citizen-dot" style="background:#22c55e;left:60%;top:48%;animation-duration:2.0s;animation-delay:0.6s;"></div>
-  <div class="citizen-dot" style="background:#22c55e;left:72%;top:30%;animation-duration:1.6s;animation-delay:0.2s;"></div>
-  <div class="citizen-dot" style="background:#3b82f6;left:20%;top:62%;animation-duration:2.3s;animation-delay:0.4s;"></div>
-  <div class="citizen-dot" style="background:#3b82f6;left:50%;top:65%;animation-duration:1.9s;animation-delay:0.5s;"></div>
-  <div class="citizen-dot" style="background:#f59e0b;left:35%;top:75%;animation-duration:2.2s;animation-delay:0.3s;"></div>
-  <div class="citizen-dot" style="background:#f59e0b;left:55%;top:78%;animation-duration:1.7s;animation-delay:0.1s;"></div>
-  <div class="citizen-dot" style="background:#8b5cf6;left:80%;top:22%;animation-duration:2.4s;animation-delay:0.7s;"></div>
-
-  <!-- Policy badge -->
-  <div class="policy-badge">🚇 {policy[:40]}{'...' if len(policy)>40 else ''}</div>
-
-  <!-- Growth badge -->
-  <div class="growth-badge">Metro {'▲' if metro_growth >= 0 else '▼'} {abs(metro_growth)} riders</div>
-
-  <!-- Stats bar -->
-  <div class="stats-bar">
-    <div class="stat-item">
-      <div class="stat-val" style="color:#fbbf24">{metro_after}</div>
-      <div class="stat-lbl">🚇 Metro</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-val" style="color:#34d399">{bus_after}</div>
-      <div class="stat-lbl">🚌 Bus</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-val" style="color:#f97316">{auto_after}</div>
-      <div class="stat-lbl">🛺 Auto/Car</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-val" style="color:#a78bfa">{walk_after}</div>
-      <div class="stat-lbl">🚶 Walking</div>
-    </div>
-  </div>
-
-</div>
-</body>
-</html>
-"""
-    components.html(html, height=440, scrolling=False)
-
-
-# =====================================================
-# RENDER FULL RESULTS
-# =====================================================
-
-def render_results(results, llm_reports, policy_display):
-    st.success(f"✅ Simulation Complete — **{policy_display}**")
-
-    # ---- METRICS ----
-    cols = st.columns(6)
-    metrics = [
-        ("👥 Citizens",    results["citizens_simulated"]),
-        ("🔄 Switches",    results["transport_changes"]),
-        ("🌱 CO2 Score",   results["estimated_co2_reduction"]),
-        ("📊 Mobility",    results["mobility_score"]),
-        ("😊 Satisfaction",results.get("citizen_sentiment",{}).get("score","—")),
-        ("⚖️ Equity",      str(results.get("equity",{}).get("equity_index","—"))+"/100"),
-    ]
-    for col, (label, val) in zip(cols, metrics):
-        col.metric(label, val)
-
-    st.divider()
-
-    # ---- MOBILITY BREAKDOWN ----
-    st.subheader("📊 Mobility Score Breakdown")
-    bd = results.get("mobility_breakdown", {})
-    if bd:
-        b_cols = st.columns(4)
-        items = [
-            ("🚗 Reduced Congestion", bd.get("reduced_congestion",0)),
-            ("🚇 Transit Adoption",   bd.get("public_transit_adoption",0)),
-            ("💰 Cost Savings",       bd.get("cost_savings",0)),
-            ("🌱 CO2 Reduction",      bd.get("co2_reduction",0)),
-        ]
-        for col, (label, val) in zip(b_cols, items):
-            with col:
-                st.markdown(f"""
-                <div class="dt-card">
-                    <div class="dt-card-label">{label}</div>
-                    <div class="dt-card-value">+{val}</div>
-                </div>""", unsafe_allow_html=True)
-        st.markdown(f"**Total Mobility Score: {bd.get('total',0)}**")
-
-    st.divider()
-
-    # ---- CHARTS ROW 1 ----
-    st.subheader("📈 Visual Insights")
-    c1, c2, c3 = st.columns([2,1,1])
-    with c1:
-        st.pyplot(plot_transport(results["transport_before"], results["transport_after"]))
-    with c2:
-        st.pyplot(plot_co2(results["estimated_co2_reduction"]))
-    with c3:
-        st.pyplot(plot_radar(results))
-
-    st.divider()
-
-    # ---- CHARTS ROW 2 ----
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("🎯 Confidence Intervals")
-        ci = results.get("confidence_intervals")
-        if ci:
-            st.pyplot(plot_confidence(ci))
-            mob = ci["mobility"]
-            st.caption(f"Mobility: {mob[0]} ± {mob[1]} (range {mob[2]}–{mob[3]})")
-    with c2:
-        st.subheader("⏰ Time-of-Day Analysis")
-        tod = results.get("time_of_day")
-        if tod:
-            st.pyplot(plot_time_of_day(tod))
-
-    st.divider()
-
-    # ---- ADOPTION CURVE ----
-    st.subheader("📅 6-Month Adoption Curve")
-    st.caption("Logistic ramp showing how ridership shifts gradually after policy launch")
-    st.pyplot(plot_adoption_curve(results))
-
-    st.divider()
-
-    # ---- EQUITY ----
-    st.subheader("⚖️ Equity Analysis — Who Benefits?")
-    eq = results.get("equity")
-    if eq:
-        eq_c1, eq_c2 = st.columns([2, 1])
-        with eq_c1:
-            st.pyplot(plot_equity(eq))
-        with eq_c2:
-            idx = eq.get("equity_index", 50)
-            color = "#22c55e" if idx > 60 else "#f59e0b" if idx > 40 else "#ef4444"
-            interpretation = ("Strongly benefits low-income groups" if idx > 70
-                              else "Broadly equitable across incomes" if idx > 50
-                              else "Benefits concentrated in higher incomes" if idx > 25
-                              else "High-income skew — consider targeted subsidies")
-            st.markdown(f"""
-            <div class="dt-eq-box">
-                <div class="dt-eq-label">Equity Index (higher = more pro-poor)</div>
-                <div class="dt-eq-value" style="color:{color}">{idx}/100</div>
-                <div class="dt-eq-note">{interpretation}</div>
-            </div>""", unsafe_allow_html=True)
-
-    st.divider()
-
-    # ---- ANIMATED MAP ----
-    st.subheader("🗺️ Delhi Live Transport Map")
-    animated_metro_map(results)
-    # Also show static scatter below (collapsible)
-    map_data = results.get("map_data", [])
-    with st.expander("📍 View citizen scatter map"):
-        if map_data:
-            m1, m2 = st.columns([2, 1])
-            with m1:
-                st.pyplot(plot_delhi_map(map_data))
-            with m2:
-                st.markdown("**Transport Legend**")
-                tc = {}
-                for p in map_data:
-                    tc[p["transport"]] = tc.get(p["transport"],0) + 1
-                color_map = {"Metro":"#22c55e","Bus":"#3b82f6","Auto":"#f59e0b","Walking":"#8b5cf6"}
-                for t, cnt in sorted(tc.items(), key=lambda x: -x[1]):
-                    c = color_map.get(t,"#6b7280")
-                    st.markdown(f"""
-                    <div class="dt-legend-row">
-                        <div class="dt-legend-dot" style="background:{c}"></div>
-                        <span class="dt-legend-name">{t}</span>
-                        <span class="dt-legend-count">{cnt}</span>
-                    </div>""", unsafe_allow_html=True)
-
-    st.divider()
-
-    # ---- SENTIMENT ----
-    st.subheader("😊 Citizen Sentiment")
-    sent = results.get("citizen_sentiment", {})
-    if sent:
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            st.markdown(sentiment_html(sent.get("score",0)), unsafe_allow_html=True)
-        with s2:
-            st.markdown("**✅ Top Benefits**")
-            for b in sent.get("top_benefits",[]):
-                st.markdown(f"- {b}")
-        with s3:
-            st.markdown("**⚠️ Top Concerns**")
-            for c in sent.get("top_complaints",[]):
-                st.markdown(f"- {c}")
-
-    # ---- SOCIAL REACTIONS FEED ----
-    social_feed = llm_reports.get("social", "")
-    if social_feed:
-        st.divider()
-        st.subheader("📱 What Would Citizens Say?")
-        st.caption("AI-generated social media reactions from each archetype")
-        feed_lines = [l.strip() for l in social_feed.strip().split("\n") if l.strip()]
-        archetype_emojis = {
-            "School Student": "🎒", "Female Student": "👩‍🎓",
-            "Female Office Worker": "👩‍💼", "Male Office Worker": "👨‍💼",
-            "Auto Driver": "🛺", "Shop Owner": "🏪",
-            "Elderly Resident": "👴", "Delivery Worker": "📦",
-        }
-        feed_cols = st.columns(2)
-        for i, line in enumerate(feed_lines[:6]):
-            with feed_cols[i % 2]:
-                st.markdown(f"""
-                <div style="background:var(--card-bg);border:1px solid var(--card-border);
-                            border-radius:12px;padding:14px;margin-bottom:10px;font-size:14px;
-                            line-height:1.5;color:var(--text-primary)">
-                    {line}
-                </div>""", unsafe_allow_html=True)
-
-    st.divider()
-
-    # ---- CUSTOM CITIZEN ----
-    st.subheader("🧑 Try a Custom Citizen")
-    cc1, cc2, cc3 = st.columns(3)
-    with cc1:
-        cc_type = st.selectbox("Citizen Type", [
-            "Female Student","Female Office Worker","Male Office Worker","Auto Driver","Shop Owner",
-            "School Student","Elderly Resident","Delivery Worker"
-        ], key="cc_type")
-    with cc2:
-        cc_income = st.number_input("Monthly Income (₹)", min_value=3000, max_value=200000,
-                                     value=35000, step=1000, key="cc_income")
-    with cc3:
-        cc_dist = st.number_input("Commute Distance (km)", min_value=1, max_value=50,
-                                   value=12, key="cc_dist")
-
-    if st.button("🔍 Simulate This Citizen", key="cc_btn"):
-        best, scores = simulate_custom_citizen(cc_type, cc_income, cc_dist, results["policy"])
-        sorted_scores = sorted(scores.items(), key=lambda x: -x[1])
-        st.markdown(f"**Best choice: `{best}`** under *{results['policy']}*")
-        col_s = st.columns(4)
-        color_map2 = {"Metro":"#22c55e","Bus":"#3b82f6","Auto":"#f59e0b","Walking":"#8b5cf6"}
-        for col, (mode, score) in zip(col_s, sorted_scores):
-            c = color_map2.get(mode,"#6b7280")
-            highlight = "border:2px solid #22c55e;" if mode == best else ""
-            with col:
-                st.markdown(f"""
-                <div class="dt-score-card" style="{highlight}">
-                    <div class="dt-score-label">{mode}</div>
-                    <div class="dt-score-value" style="color:{c}">{score}</div>
-                </div>""", unsafe_allow_html=True)
-
-    st.divider()
-
-    # ---- AGENT REPORTS ----
-    st.subheader("🤖 Agent Reports")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🏛 Government","🚇 Transport","🌱 Environment","👥 Citizens","🏪 Business"
-    ])
-    for tab, key in zip([tab1,tab2,tab3,tab4,tab5],
-                        ["government","transport","environment","citizens","business"]):
-        with tab:
-            report = llm_reports.get(key, results.get(f"{key}_report",""))
-            st.info(report)
-
-    st.divider()
-
-    # ---- PDF EXPORT ----
-    st.subheader("📄 Export Report")
-    pdf_buf = export_pdf(results, llm_reports)
-    st.download_button(
-        label="⬇️ Download PDF Report",
-        data=pdf_buf,
-        file_name=f"delhi_twin_{results['policy'].replace(' ','_')[:30]}.pdf",
-        mime="application/pdf"
-    )
-
-
-# =====================================================
-# MAIN APP LOGIC
-# =====================================================
-
-if run_btn:
-
-    # ---- COMPARE ALL ----
-    if mode == "Compare All Policies":
-        all_policies = [
-            "Free Metro Rides For Women",
-            "50% Bus Fare Reduction",
-            "Congestion Tax",
-            "New Metro Line",
-            "Metro Operating Hours Extended to 2 AM",
-            "Airport Express Fare Reduction",
-            "Reserved Student Coaches",
-            "Personal Carbon Budget",
-            "Free Transit Birthdays",
-            "Car-Free School Zones",
-            "One-Ticket City",
-            "Free EV Parking",
-        ]
-        all_results = []
-        prog = st.progress(0, text="Running all simulations...")
-
-        for i, p in enumerate(all_policies):
-            prog.progress((i+1)/len(all_policies), text=f"Simulating: {p}...")
-            r = run_simulation(p)
-            all_results.append(r)
-
-        prog.empty()
-        st.success("✅ All 12 Policy Simulations Complete")
-
-        # Comparison table
-        st.subheader("📊 Policy Comparison Table")
-        best_mob = max(all_results, key=lambda x: x["mobility_score"])
-        cols_h = st.columns([2.5,1.2,1.2,1.2,1.2,1.2,1.2])
-        for col, h in zip(cols_h, ["Policy","Mobility","CO2","Switches","Satisfaction","Equity","Decision"]):
-            col.markdown(f"**{h}**")
-
-        for r in all_results:
-            cols_r = st.columns([2.5,1.2,1.2,1.2,1.2,1.2,1.2])
-            is_best = r == best_mob
-            cols_r[0].markdown(f"{'**' if is_best else ''}{r['policy']}{' ⭐' if is_best else ''}{'**' if is_best else ''}")
-            cols_r[1].metric("", r["mobility_score"])
-            cols_r[2].metric("", r["estimated_co2_reduction"])
-            cols_r[3].metric("", r["transport_changes"])
-            cols_r[4].metric("", r.get("citizen_sentiment",{}).get("score","—"))
-            cols_r[5].metric("", str(r.get("equity",{}).get("equity_index","—"))+"/100")
-            decision = "✅ APPROVE" if "APPROVE" in r.get("government_report","") else "🔄 REVIEW"
-            cols_r[6].markdown(decision)
-
-        st.divider()
-
-        # Best policy highlight
-        st.markdown(f"""
-        <div class="dt-best-banner">
-            <div style="color:#bbf7d0;font-size:22px;font-weight:700">🥇 {best_mob['policy']}</div>
-            <div style="color:#86efac;margin-top:6px">Highest combined performance across all metrics</div>
-            <div style="display:flex;gap:24px;margin-top:10px">
-                <div><span style="color:#4ade80;font-size:20px;font-weight:700">{best_mob['mobility_score']}</span>
-                     <span style="color:#86efac;font-size:13px;margin-left:4px">Mobility</span></div>
-                <div><span style="color:#4ade80;font-size:20px;font-weight:700">{best_mob['estimated_co2_reduction']}</span>
-                     <span style="color:#86efac;font-size:13px;margin-left:4px">CO2</span></div>
-                <div><span style="color:#4ade80;font-size:20px;font-weight:700">{best_mob['transport_changes']}</span>
-                     <span style="color:#86efac;font-size:13px;margin-left:4px">Switches</span></div>
-            </div>
-        </div>""", unsafe_allow_html=True)
-
-        st.subheader("📈 Side-by-Side Comparison")
-        st.pyplot(plot_comparison(all_results))
-
-        st.divider()
-        st.subheader("🔍 Per-Policy Details")
-        tabs = st.tabs([r["policy"].split()[0]+"…" for r in all_results])
-        for tab, r in zip(tabs, all_results):
-            with tab:
-                c1,c2,c3,c4 = st.columns(4)
-                c1.metric("Mobility",  r["mobility_score"])
-                c2.metric("CO2",       r["estimated_co2_reduction"])
-                c3.metric("Switches",  r["transport_changes"])
-                c4.metric("Equity",    str(r.get("equity",{}).get("equity_index","—"))+"/100")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.pyplot(plot_transport(r["transport_before"], r["transport_after"]))
-                with col_b:
-                    st.pyplot(plot_radar(r))
-
-    # ---- STACKED POLICIES ----
-    elif mode == "Stacked Policies":
-        policy_arg = json.dumps(stacked_policies)
-        policy_display = f"🔗 {stacked_policies[0]}  +  {stacked_policies[1]}"
-
-        st.info(f"**Stacking:** {stacked_policies[0]} **+** {stacked_policies[1]}")
-
-        app_dir = os.path.dirname(os.path.abspath(__file__))
-        try:
-            with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
-                citizens_base = json.load(f)
-        except Exception:
-            citizens_base = []
-
-        with st.spinner("Running stacked simulation..."):
-            results = run_simulation(policy_arg)
-
-        llm_reports = {}
-        if use_llm:
-            with st.spinner("🤖 Generating LLM agent reports..."):
-                for key in ["government","transport","environment","citizens","business","social"]:
-                    llm_reports[key] = get_llm_report(key, results)
-
-        citizens_after = results.get("citizens_after", [])
-        render_results(results, llm_reports, policy_display)
-
-        if citizens_after:
-            st.divider()
-            st.subheader("🧩 Archetypes Breakdown")
-            render_archetypes_tab(results, citizens_base, citizens_after)
-
-    # ---- SINGLE POLICY ----
-    else:
-        # NLP parsing
-        if policy_type == "Natural Language" and custom_policy_str:
-            with st.spinner("🤖 Parsing policy with Claude..."):
-                parsed = parse_nl_policy(custom_policy_str)
-
-            if parsed:
-                st.info(f"**Parsed:** `{parsed['name']}` — {parsed.get('explanation','')}")
-                policy_arg = json.dumps(parsed)
-                policy_display = parsed["name"]
-            else:
-                st.warning("Could not parse policy automatically. Using as policy name.")
-                policy_arg = custom_policy_str
-                policy_display = custom_policy_str
-        else:
-            if policy.startswith("──"):
-                st.warning("Please select an actual policy, not a category header.")
-                st.stop()
-            policy_arg = policy
-            policy_display = policy
-
-        # Live replay
-        with st.expander("🎬 Live Simulation Replay", expanded=True):
-            live_replay(policy_arg if not isinstance(policy_arg, dict) else
-                        json.loads(policy_arg).get("name", str(policy_arg)))
-
-        # Load citizens_base for archetypes tab
-        app_dir = os.path.dirname(os.path.abspath(__file__))
-        try:
-            with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
-                citizens_base = json.load(f)
-        except Exception:
-            citizens_base = []
-
-        # Full simulation
-        with st.spinner("Running full analysis..."):
-            results = run_simulation(policy_arg)
-
-        # LLM reports
-        llm_reports = {}
-        if use_llm:
-            with st.spinner("🤖 Generating LLM agent reports..."):
-                agent_keys = ["government","transport","environment","citizens","business","social"]
-                for key in agent_keys:
-                    llm_reports[key] = get_llm_report(key, results)
-
-        citizens_after = results.get("citizens_after", [])
-
-        render_results(results, llm_reports, policy_display)
-
-        # Archetypes tab
-        if citizens_after:
-            st.divider()
-            st.subheader("🧩 Archetypes Breakdown")
-            render_archetypes_tab(results, citizens_base, citizens_after)
-
-else:
-    # Default landing
+# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+with st.sidebar:
     st.markdown("""
-    <div class="dt-info-box">
-        <div class="dt-info-title">How It Works</div>
-        <div class="dt-info-body">
-            <b>1,000 citizens</b> across 8 archetypes each independently decide their transport mode
-            based on cost, time, comfort, and safety sensitivity scores.<br><br>
-            <b>12 Policies to simulate:</b><br>
-            🚇 Free Metro Rides For Women &nbsp;·&nbsp; 🚌 50% Bus Fare Reduction &nbsp;·&nbsp; 🚗 Congestion Tax &nbsp;·&nbsp; 🛤️ New Metro Line<br>
-            🌙 Metro Hours Extended to 2AM &nbsp;·&nbsp; ✈️ Airport Express Fare Reduction &nbsp;·&nbsp; 🎓 Reserved Student Coaches<br>
-            🌿 Personal Carbon Budget &nbsp;·&nbsp; 🎂 Free Transit Birthdays &nbsp;·&nbsp; 🏫 Car-Free School Zones<br>
-            🎫 One-Ticket City &nbsp;·&nbsp; ⚡ Free EV Parking<br><br>
-            <b>Features:</b> 🤖 LLM agent reports &nbsp;·&nbsp; 🚆 Live metro animation &nbsp;·&nbsp; 🧑 Custom citizen builder &nbsp;·&nbsp;
-            📡 Radar chart &nbsp;·&nbsp; ⚖️ Equity analysis &nbsp;·&nbsp; 🎯 Confidence intervals &nbsp;·&nbsp; 📄 PDF export
-        </div>
+    <div style='padding:.5rem 0 1rem'>
+      <div style='font-size:1.3rem;font-weight:700;color:#f1f5f9'>🚇 Delhi Twin</div>
+      <div style='font-size:11px;color:#64748b;margin-top:3px'>Urban Policy Simulator</div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("**Mode**")
+    mode = st.radio("", ["Single Policy","Compare All"], label_visibility="collapsed")
+
+    if mode == "Single Policy":
+        st.markdown("**Policy source**")
+        psrc = st.radio("", ["Preset","Natural language"], label_visibility="collapsed", horizontal=True)
+        if psrc == "Preset":
+            policy = st.selectbox("Choose policy", POLICIES)
+            nl_input = None
+        else:
+            nl_input = st.text_area("Describe your policy", placeholder="e.g. Subsidise e-rickshaws by 40%", height=90)
+            policy = nl_input or "Free Metro Rides For Women"
+
+    st.divider()
+    use_llm = st.toggle("🤖 AI features", value=True, help="Enables Claude-powered tweets, debate, counterfactuals")
+    budget_cr = st.slider("Policy budget (₹ Crore)", 1, 500, 50, help="Used for cost-benefit calculation")
+
+    st.divider()
+    run_btn = st.button("▶ Run Simulation", use_container_width=True, type="primary")
+    st.caption("100 Delhi citizens · 5 AI archetypes · 4 transport modes")
+
+
+# ─── HERO ─────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class='dt-hero'>
+  <div class='dt-hero-badge'>🌆 FAR AWAY Hackathon · Urban Intelligence</div>
+  <h1>Delhi's Digital Twin</h1>
+  <p>Multi-agent AI simulating 100 Delhi citizens across 5 archetypes · Real AQI data · Live map · AI policy debate</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ─── AQI STRIP ────────────────────────────────────────────────────────────────
+aqi_data = fetch_aqi()
+aqi_val = aqi_data["aqi"]
+aqi_lbl, aqi_color = aqi_label(aqi_val)
+needle_pct = min(98, aqi_val / 400 * 100)
+st.markdown(f"""
+<div class='dt-card' style='margin-bottom:.75rem;padding:.9rem 1.4rem'>
+  <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem'>
+    <span style='font-size:13px;font-weight:600;color:#94a3b8'>🌫 Delhi AQI Right Now
+      <span style='font-size:10px;margin-left:6px;color:#475569'>({aqi_data["source"]})</span>
+    </span>
+    <span style='font-size:20px;font-weight:800;color:{aqi_color}'>{aqi_val} — {aqi_lbl}</span>
+  </div>
+  <div class='dt-aqi-bar'>
+    <div class='dt-aqi-needle' style='left:{needle_pct}%'></div>
+  </div>
+  <div style='display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-top:3px'>
+    <span>0 Good</span><span>100 Moderate</span><span>200 Unhealthy</span><span>400 Hazardous</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ─── MAIN LOGIC ───────────────────────────────────────────────────────────────
+citizens = load_citizens()
+
+if run_btn:
+    if policy in ("── Classic ──", "── New ──"):
+        st.warning("Please select a specific policy.")
+        st.stop()
+
+    with st.spinner("🔄 Running simulation…"):
+        results = run_sim(citizens, policy)
+    st.session_state["results"] = results
+    st.session_state["policy"] = policy
+    st.session_state["budget_cr"] = budget_cr
+
+results = st.session_state.get("results")
+
+if not results:
+    st.info("👈 Choose a policy in the sidebar and click **Run Simulation** to begin.")
+    st.stop()
+
+
+# ─── GRADE BANNER ─────────────────────────────────────────────────────────────
+mob   = results["mobility_score"]
+co2   = results["estimated_co2_reduction"]
+eq    = results.get("equity_index", 0)
+switches = results["transport_changes"]
+g_letter, g_class = grade(mob)
+
+col_grade, col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns([1, 2, 2, 2, 2])
+with col_grade:
+    st.markdown(f"""
+    <div class='dt-card' style='text-align:center;padding:1.1rem'>
+      <div class='dt-card-title'>Policy grade</div>
+      <div class='dt-grade {g_class}'>{g_letter}</div>
+      <div style='font-size:11px;color:#64748b'>{results["policy"][:28]}…</div>
+    </div>""", unsafe_allow_html=True)
+with col_kpi1:
+    st.metric("Citizens switched", f"{switches}")
+with col_kpi2:
+    st.metric("Mobility score", f"{mob}/100")
+with col_kpi3:
+    st.metric("CO₂ reduction", f"+{co2}")
+with col_kpi4:
+    st.metric("Equity index", f"{eq}/100")
+
+# Projected AQI improvement
+proj_aqi = max(50, round(aqi_val * (1 - co2 / 300), 0))
+st.markdown(f"""
+<div style='background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:12px;
+     padding:.75rem 1.4rem;margin:.5rem 0 1rem;display:flex;align-items:center;gap:12px'>
+  <span style='font-size:1.4rem'>🌿</span>
+  <div>
+    <span style='font-size:14px;color:#f1f5f9;font-weight:600'>This policy could bring Delhi AQI from
+    <span style='color:#ef4444'>{aqi_val}</span> →
+    <span style='color:#22c55e'>~{int(proj_aqi)}</span></span>
+    <span style='font-size:12px;color:#64748b;margin-left:8px'>(model estimate based on modal shift)</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─── TABS ─────────────────────────────────────────────────────────────────────
+tabs = st.tabs(["🗺 Live Map", "📊 Analysis", "🤖 AI Debate", "🐦 Citizen Reactions",
+                "💰 Cost-Benefit", "🔮 What If?", "📤 Export"])
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — LIVE MAP
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[0]:
+    st.markdown("### 🗺 Delhi Commuter Heatmap")
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.markdown("**Before policy**")
+        m_before = build_folium_map(citizens, results, show="before")
+        components.html(m_before._repr_html_(), height=420)
+
+    with col_b:
+        st.markdown("**After policy**")
+        m_after = build_folium_map(citizens, results, show="after")
+        components.html(m_after._repr_html_(), height=420)
+
+    st.markdown("""
+    <div style='display:flex;gap:20px;margin-top:.5rem;flex-wrap:wrap'>
+      <span style='font-size:12px;color:#64748b'>
+        <span style='display:inline-block;width:10px;height:10px;border-radius:50%;background:#3b82f6;margin-right:5px'></span>Metro commuters
+        <span style='margin-left:12px;display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;margin-right:5px'></span>Bus commuters
+        <span style='margin-left:12px;display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;margin-right:5px'></span>Auto/car commuters
+        <span style='margin-left:12px;display:inline-block;width:10px;height:10px;background:#fbbf24;margin-right:5px'></span>Metro yellow line
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — ANALYSIS
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[1]:
+    st.markdown("### 📊 Transport Mode Analysis")
+
+    before = results["transport_before"]; after = results["transport_after"]
+    modes = sorted(set(before)|set(after))
+
+    def dark_fig(w=9, h=4):
+        fig, ax = plt.subplots(figsize=(w, h))
+        fig.patch.set_facecolor("#111827"); ax.set_facecolor("#111827")
+        for s in ["top","right"]: ax.spines[s].set_visible(False)
+        for s in ["bottom","left"]: ax.spines[s].set_color("#2a3548")
+        ax.tick_params(colors="#64748b")
+        return fig, ax
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig, ax = dark_fig()
+        x = np.arange(len(modes)); w = 0.38
+        bv = [before.get(m,0) for m in modes]; av = [after.get(m,0) for m in modes]
+        ax.bar(x-w/2, bv, w, color="#334155", label="Before", alpha=.9)
+        bars = ax.bar(x+w/2, av, w, color=[TRANSPORT_COLORS.get(m,"#94a3b8") for m in modes], label="After", alpha=.9)
+        for bar in bars:
+            h_val = bar.get_height()
+            if h_val > 0:
+                ax.text(bar.get_x()+bar.get_width()/2, h_val+.4, str(int(h_val)),
+                        ha="center", va="bottom", color="#94a3b8", fontsize=9)
+        ax.set_xticks(x); ax.set_xticklabels(modes, color="#94a3b8")
+        ax.set_ylabel("Citizens", color="#64748b")
+        ax.set_title("Mode Distribution: Before vs After", color="#f1f5f9", pad=10)
+        ax.legend(facecolor="#1a2235", labelcolor="#f1f5f9", edgecolor="#2a3548")
+        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+
+    with c2:
+        fig, ax = dark_fig()
+        # Donut — after
+        sizes = [after.get(m,0) for m in modes]
+        clrs  = [TRANSPORT_COLORS.get(m,"#64748b") for m in modes]
+        wedges, texts, autotexts = ax.pie(sizes, labels=modes, colors=clrs,
+                                          autopct="%1.0f%%", startangle=90,
+                                          wedgeprops=dict(width=.55, edgecolor="#111827"))
+        for at in autotexts: at.set_color("white"); at.set_fontsize(9)
+        for t in texts: t.set_color("#94a3b8"); t.set_fontsize(9)
+        ax.set_title("Post-Policy Distribution", color="#f1f5f9", pad=10)
+        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+
+    # Radar
+    st.markdown("#### 🕸 Policy Radar")
+    labels = ["Mobility", "Environment", "Equity", "Economy", "Safety"]
+    vals = [
+        min(10, mob/10),
+        min(10, co2/5),
+        min(10, eq/10),
+        min(10, switches/10),
+        min(10, (after.get("Metro",0)+after.get("Bus",0))/10),
+    ]
+    vals += vals[:1]
+    N = len(labels)
+    angles = [n/N*2*math.pi for n in range(N)] + [0]
+    fig, ax = plt.subplots(figsize=(5,5), subplot_kw={"polar": True})
+    fig.patch.set_facecolor("#111827"); ax.set_facecolor("#111827")
+    ax.set_xticks(angles[:-1]); ax.set_xticklabels(labels, color="#94a3b8", size=10)
+    ax.set_yticklabels([]); ax.spines["polar"].set_color("#2a3548")
+    ax.plot(angles, vals, color="#3b82f6", linewidth=2)
+    ax.fill(angles, vals, color="#3b82f6", alpha=.2)
+    ax.set_title(f"{results['policy'][:30]}", pad=20, color="#f1f5f9", size=11)
+    plt.tight_layout()
+    col_r, col_blank = st.columns([1,2])
+    with col_r: st.pyplot(fig)
+    plt.close(fig)
+
+    # Agent reports (expandable)
+    if use_llm:
+        st.markdown("#### 🤖 Agent Policy Reports")
+        for ag, cfg in AGENT_CONFIG.items():
+            with st.expander(f"{cfg['emoji']} {cfg['label']} Report"):
+                with st.spinner("Generating…"):
+                    rpt = get_agent_report(ag, results)
+                st.markdown(f"<div style='font-size:13px;color:#cbd5e1;line-height:1.7'>{rpt}</div>",
+                            unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — AI DEBATE
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[2]:
+    st.markdown("### 🤖 AI Agent Policy Debate")
+    if not use_llm:
+        st.info("Enable AI features in the sidebar to see the agent debate.")
+    else:
+        if st.button("⚡ Start Debate", type="primary"):
+            with st.spinner("Agents are arguing… "):
+                debate = generate_debate(results)
+            st.session_state["debate"] = debate
+
+        debate = st.session_state.get("debate", [])
+        if debate:
+            st.markdown(f"**Debating:** _{results['policy']}_")
+            for msg in debate:
+                cfg = AGENT_CONFIG[msg["agent"]]
+                round_label = "Opening argument" if msg["round"]==1 else "Rebuttal"
+                st.markdown(f"""
+                <div class='dt-debate-msg'>
+                  <div class='dt-debate-agent' style='color:{cfg["color"]}'>
+                    {cfg["emoji"]} {cfg["label"]} — {round_label}
+                  </div>
+                  <div class='dt-debate-text'>{msg["text"]}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.caption("Click 'Start Debate' above to watch the agents argue!")
+
+        # Personas
+        st.markdown("---")
+        st.markdown("### 👤 Citizen Personas")
+        if st.button("Generate citizen stories"):
+            with st.spinner("Crafting stories…"):
+                personas = generate_personas(citizens, results)
+            st.session_state["personas"] = personas
+
+        personas = st.session_state.get("personas", [])
+        if personas:
+            cols = st.columns(3)
+            for i, p in enumerate(personas[:6]):
+                with cols[i % 3]:
+                    t_color = TRANSPORT_COLORS.get(p.get("to","Metro"),"#64748b")
+                    st.markdown(f"""
+                    <div class='dt-persona'>
+                      <div class='dt-persona-name'>{p.get("name","Citizen")}</div>
+                      <div class='dt-persona-info'>{p.get("area","Delhi")} · {p.get("type","")}</div>
+                      <div style='font-size:11px;margin-bottom:.4rem'>
+                        <span style='color:#64748b;text-decoration:line-through'>{p.get("from","Auto")}</span>
+                        → <span style='color:{t_color};font-weight:600'>{p.get("to","Metro")}</span>
+                      </div>
+                      <div class='dt-persona-story'>{p.get("story","")}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — CITIZEN REACTIONS (TWITTER WALL)
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[3]:
+    st.markdown("### 🐦 Delhi Citizens React")
+    if not use_llm:
+        st.info("Enable AI features in the sidebar.")
+    else:
+        if st.button("🔄 Generate tweets"):
+            with st.spinner("Delhi citizens are tweeting…"):
+                tweets = generate_tweets(citizens, results)
+            st.session_state["tweets"] = tweets
+
+        tweets = st.session_state.get("tweets", [])
+        if tweets:
+            col_t1, col_t2 = st.columns(2)
+            for i, tw in enumerate(tweets):
+                col = col_t1 if i % 2 == 0 else col_t2
+                with col:
+                    st.markdown(f"""
+                    <div class='dt-tweet'>
+                      <div style='display:flex;justify-content:space-between'>
+                        <span class='dt-tweet-handle'>{tw.get("handle","@delhizen")}</span>
+                        <span class='dt-tweet-type'>{tw.get("emoji","")} {tw.get("type","")}</span>
+                      </div>
+                      <div class='dt-tweet-text'>{tw.get("tweet","")}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.caption("Click 'Generate tweets' to see how Delhiites react!")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — COST-BENEFIT
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[4]:
+    st.markdown("### 💰 Cost-Benefit Analysis")
+    bgt = st.session_state.get("budget_cr", 50)
+    cb = cost_benefit(results, bgt)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"""
+        <div class='dt-roi-box'>
+          <div class='dt-roi-label'>Return on Investment</div>
+          <div class='dt-roi-value'>{cb['roi']}x</div>
+          <div class='dt-roi-sub'>₹{cb['benefit_cr']:.1f} Cr benefit vs ₹{bgt} Cr cost</div>
+        </div>""", unsafe_allow_html=True)
+    with c2:
+        hrs = int(cb['time_saved_hrs_pa'])
+        st.metric("Time saved/year", f"{hrs:,} hrs")
+        st.metric("Citizens switched", str(cb["switches"]))
+    with c3:
+        st.metric("Annual social benefit", f"₹{cb['benefit_cr']:.1f} Cr")
+        st.metric("CO₂ reduction score", str(cb["co2_reduction"]))
+
+    st.markdown("---")
+    st.markdown("**Methodology**")
+    st.markdown(f"""
+    | Assumption | Value |
+    |---|---|
+    | Avg commute time saved per switch | 8 min/day |
+    | Working days/month | 22 |
+    | Delhi median monthly wage | ₹25,000 |
+    | Value of time (per min) | ₹{25000/(22*8*60):.2f} |
+    | Citizens switched | {cb['switches']} |
+    | Policy budget | ₹{bgt} Cr |
+    """)
+    st.caption("Estimates are indicative. Real-world benefits depend on implementation scale and commute corridor specifics.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — WHAT IF?
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[5]:
+    st.markdown("### 🔮 Counterfactual Explorer")
+    if not use_llm:
+        st.info("Enable AI features in the sidebar.")
+    else:
+        if st.button("🧠 Generate what-if scenarios"):
+            with st.spinner("Claude is imagining alternatives…"):
+                cfs = generate_counterfactuals(results)
+            st.session_state["counterfactuals"] = cfs
+
+        cfs = st.session_state.get("counterfactuals", [])
+        if cfs:
+            st.markdown("**Click a scenario to simulate it instantly:**")
+            for cf in cfs:
+                st.markdown(f"""
+                <div class='dt-chip' onclick="void(0)">
+                  🔮 {cf.get("question","What if…")}
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
+            sel = st.selectbox("Or pick one to mini-simulate:", [cf["question"] for cf in cfs])
+            if st.button("▶ Run counterfactual mini-sim"):
+                # Use Claude to map the what-if to a policy, then run sim
+                with st.spinner("Simulating alternative…"):
+                    cf_prompt = f"""The user asked: '{sel}'
+Original policy: {results['policy']}
+Translate this into one of these policy names or describe a parameter change:
+{json.dumps(POLICIES[1:])}
+Return ONLY the closest matching policy name from that list, or the original policy if none match."""
+                    alt_policy = claude(cf_prompt, max_tokens=60).strip().strip('"')
+                    if alt_policy not in POLICIES:
+                        alt_policy = results["policy"]
+                    alt_results = run_sim(citizens, alt_policy)
+
+                col_orig, col_alt = st.columns(2)
+                with col_orig:
+                    st.markdown(f"**Original: {results['policy']}**")
+                    st.metric("Switches", results["transport_changes"])
+                    st.metric("Mobility", results["mobility_score"])
+                    st.metric("CO₂", results["estimated_co2_reduction"])
+                with col_alt:
+                    st.markdown(f"**Counterfactual: {alt_policy}**")
+                    st.metric("Switches", alt_results["transport_changes"],
+                              delta=alt_results["transport_changes"]-results["transport_changes"])
+                    st.metric("Mobility", alt_results["mobility_score"],
+                              delta=round(alt_results["mobility_score"]-results["mobility_score"],1))
+                    st.metric("CO₂", alt_results["estimated_co2_reduction"],
+                              delta=alt_results["estimated_co2_reduction"]-results["estimated_co2_reduction"])
+        else:
+            st.caption("Click 'Generate what-if scenarios' to explore alternatives!")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 7 — EXPORT
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[6]:
+    st.markdown("### 📤 Export Results")
+    bgt = st.session_state.get("budget_cr", 50)
+    cb  = cost_benefit(results, bgt)
+
+    col_pdf, col_ppt = st.columns(2)
+
+    with col_pdf:
+        st.markdown("""
+        <div class='dt-card'>
+          <div class='dt-card-title'>📄 PDF Report</div>
+          <div style='color:#94a3b8;font-size:13px;margin-bottom:1rem'>
+            Full simulation report with metrics, transport shift, and cost-benefit table.
+          </div>
+        </div>""", unsafe_allow_html=True)
+        pdf_buf = export_pdf_simple(results, cb)
+        st.download_button("⬇ Download PDF", pdf_buf,
+                           file_name=f"delhi_twin_{results['policy'][:20].replace(' ','_')}.pdf",
+                           mime="application/pdf", use_container_width=True)
+
+    with col_ppt:
+        st.markdown("""
+        <div class='dt-card'>
+          <div class='dt-card-title'>📊 PowerPoint Deck</div>
+          <div style='color:#94a3b8;font-size:13px;margin-bottom:1rem'>
+            5-slide branded presentation: title, metrics, simulation, agent consensus, next steps.
+          </div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("🔧 Generate PPTX", use_container_width=True):
+            with st.spinner("Building slides…"):
+                pptx_bytes = export_pptx(results, cb)
+            if pptx_bytes:
+                st.download_button("⬇ Download PPTX", pptx_bytes,
+                                   file_name=f"delhi_twin_{results['policy'][:20].replace(' ','_')}.pptx",
+                                   mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                   use_container_width=True)
+            else:
+                st.error("PPTX generation failed — check Node.js is installed.")
+
+    st.markdown("---")
+    st.markdown("**Raw JSON export**")
+    st.download_button("⬇ Download results.json", json.dumps(results, indent=2),
+                       file_name="results.json", mime="application/json")
