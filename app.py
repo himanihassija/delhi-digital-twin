@@ -157,7 +157,7 @@ st.divider()
 with st.sidebar:
     st.header("⚙️ Controls")
 
-    mode = st.radio("Mode", ["Single Policy", "Compare All Policies"], horizontal=False)
+    mode = st.radio("Mode", ["Single Policy", "Stacked Policies", "Compare All Policies"], horizontal=False)
 
     if mode == "Single Policy":
         policy_type = st.radio("Policy Source", ["Preset", "Natural Language"], horizontal=True)
@@ -188,6 +188,29 @@ with st.sidebar:
             )
             custom_policy_str = nl_input if nl_input.strip() else None
             policy = nl_input if nl_input.strip() else "(enter policy above)"
+
+    elif mode == "Stacked Policies":
+        PRESET_POLICIES = [
+            "Free Metro Rides For Women",
+            "50% Bus Fare Reduction",
+            "Congestion Tax",
+            "New Metro Line",
+            "Metro Operating Hours Extended to 2 AM",
+            "Airport Express Fare Reduction",
+            "Reserved Student Coaches",
+            "Personal Carbon Budget",
+            "Free Transit Birthdays",
+            "Car-Free School Zones",
+            "One-Ticket City",
+            "Free EV Parking",
+        ]
+        st.markdown("**Pick 2 policies to stack:**")
+        stack_p1 = st.selectbox("Policy 1", PRESET_POLICIES, index=0, key="stack_p1")
+        stack_p2 = st.selectbox("Policy 2", [p for p in PRESET_POLICIES if p != stack_p1],
+                                 index=0, key="stack_p2")
+        stacked_policies = [stack_p1, stack_p2]
+        policy = " + ".join(stacked_policies)
+        custom_policy_str = None
 
     st.divider()
     use_llm = st.toggle("🤖 LLM Agent Reports", value=True,
@@ -277,6 +300,15 @@ AGENT_PROMPTS = {
         "You are a Delhi Urban Economics Analyst. Analyse this simulation data and write a business "
         "impact report (3-4 paragraphs) covering: footfall changes near transit corridors, "
         "economic opportunity, sectors that benefit, and risks for existing transport businesses."
+    ),
+    "social": (
+        "You are a social media analyst for Delhi. Given this transport policy simulation data, "
+        "write exactly 6 short social media posts (tweet-length, max 25 words each) — one from each "
+        "of these archetypes reacting to the policy: School Student, Female Student, Female Office Worker, "
+        "Auto Driver, Elderly Resident, Delivery Worker. "
+        "Format: each post on its own line starting with the archetype emoji and name in bold, then the post. "
+        "Use a realistic Delhi voice — mix Hindi-English (Hinglish) where natural. "
+        "Some should be excited, some worried, some neutral. Respond ONLY with the 6 posts, no preamble."
     )
 }
 
@@ -515,18 +547,26 @@ def plot_delhi_map(map_data):
 
 def plot_comparison(all_results):
     short = {
-        "Free Metro Rides For Women": "Free\nMetro",
-        "50% Bus Fare Reduction":     "Bus\nDiscount",
-        "Congestion Tax":             "Congestion\nTax",
-        "New Metro Line":             "New Metro\nLine"
+        "Free Metro Rides For Women":            "Free\nMetro",
+        "50% Bus Fare Reduction":                "Bus\nDiscount",
+        "Congestion Tax":                        "Cong.\nTax",
+        "New Metro Line":                        "New\nMetro",
+        "Metro Operating Hours Extended to 2 AM":"Metro\n2AM",
+        "Airport Express Fare Reduction":        "Airport\nExpress",
+        "Reserved Student Coaches":              "Student\nCoaches",
+        "Personal Carbon Budget":                "Carbon\nBudget",
+        "Free Transit Birthdays":                "Birthday\nFree",
+        "Car-Free School Zones":                 "School\nZones",
+        "One-Ticket City":                       "One\nTicket",
+        "Free EV Parking":                       "EV\nParking",
     }
-    labels   = [short.get(r["policy"], r["policy"][:10]) for r in all_results]
+    labels   = [short.get(r["policy"], r["policy"][:8]) for r in all_results]
     mobility = [r["mobility_score"]            for r in all_results]
     co2      = [r["estimated_co2_reduction"]   for r in all_results]
     switches = [r["transport_changes"]         for r in all_results]
 
     x = np.arange(len(all_results)); w = 0.25
-    fig, ax = dark_fig(11, 6)
+    fig, ax = dark_fig(max(14, len(all_results)*1.2), 6)
     ax.bar(x-w, mobility, w, label="Mobility Score",    color="#3b82f6", alpha=0.9)
     ax.bar(x,   co2,      w, label="CO2 Reduction",     color="#22c55e", alpha=0.9)
     ax.bar(x+w, switches, w, label="Citizens Switched", color="#f97316", alpha=0.9)
@@ -535,9 +575,47 @@ def plot_comparison(all_results):
     ax.annotate("⭐ Best", xy=(best_idx-w, max(mobility)+1),
                 ha="center", color="#fbbf24", fontsize=10, fontweight="bold")
 
-    ax.set_xticks(x); ax.set_xticklabels(labels, color="#cbd5e1")
+    ax.set_xticks(x); ax.set_xticklabels(labels, color="#cbd5e1", fontsize=9)
     ax.set_ylabel("Score / Count", color="#cbd5e1")
-    ax.set_title("Policy Comparison — All Four Policies", color="#f8fafc", pad=10)
+    ax.set_title(f"Policy Comparison — All {len(all_results)} Policies", color="#f8fafc", pad=10)
+    ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
+    plt.tight_layout()
+    return fig
+
+
+def plot_adoption_curve(results):
+    """6-month logistic adoption curve showing how transit adoption ramps up."""
+    import copy
+    months = list(range(7))  # 0 to 6
+    metro_vals, bus_vals, auto_vals = [], [], []
+
+    base_metro = results["transport_before"].get("Metro", 0)
+    base_bus   = results["transport_before"].get("Bus", 0)
+    base_auto  = results["transport_before"].get("Auto", 0)
+    final_metro = results["transport_after"].get("Metro", 0)
+    final_bus   = results["transport_after"].get("Bus", 0)
+    final_auto  = results["transport_after"].get("Auto", 0)
+
+    def logistic(t, L=1, k=1.5, t0=3):
+        return L / (1 + np.exp(-k * (t - t0)))
+
+    for m in months:
+        f = logistic(m)
+        metro_vals.append(int(base_metro + (final_metro - base_metro) * f))
+        bus_vals.append(int(base_bus   + (final_bus   - base_bus)   * f))
+        auto_vals.append(int(base_auto  + (final_auto  - base_auto)  * f))
+
+    fig, ax = dark_fig(9, 4)
+    ax.plot(months, metro_vals, "o-", color="#22c55e", linewidth=2.5, label="Metro",   markersize=6)
+    ax.plot(months, bus_vals,   "s-", color="#3b82f6", linewidth=2.5, label="Bus",     markersize=6)
+    ax.plot(months, auto_vals,  "^-", color="#f59e0b", linewidth=2.5, label="Auto",    markersize=6)
+    ax.axvline(x=0, color="#94a3b8", linestyle="--", alpha=0.5, label="Policy launch")
+    ax.fill_between(months, metro_vals, alpha=0.08, color="#22c55e")
+    ax.set_xticks(months)
+    ax.set_xticklabels(["Launch","Month 1","Month 2","Month 3","Month 4","Month 5","Month 6"],
+                       rotation=15, ha="right", color="#cbd5e1", fontsize=9)
+    ax.set_ylabel("Citizens", color="#cbd5e1")
+    ax.set_title("6-Month Adoption Curve (Logistic Ramp)", color="#f8fafc", pad=10)
     ax.legend(facecolor="#1e293b", labelcolor="#f8fafc", edgecolor="#334155")
     plt.tight_layout()
     return fig
@@ -1335,6 +1413,13 @@ def render_results(results, llm_reports, policy_display):
 
     st.divider()
 
+    # ---- ADOPTION CURVE ----
+    st.subheader("📅 6-Month Adoption Curve")
+    st.caption("Logistic ramp showing how ridership shifts gradually after policy launch")
+    st.pyplot(plot_adoption_curve(results))
+
+    st.divider()
+
     # ---- EQUITY ----
     st.subheader("⚖️ Equity Analysis — Who Benefits?")
     eq = results.get("equity")
@@ -1345,13 +1430,13 @@ def render_results(results, llm_reports, policy_display):
         with eq_c2:
             idx = eq.get("equity_index", 50)
             color = "#22c55e" if idx > 60 else "#f59e0b" if idx > 40 else "#ef4444"
-            interpretation = ("Strongly benefits lower-income groups" if idx > 70
-                              else "Broadly equitable" if idx > 50
-                              else "Slightly favours higher-income groups" if idx > 35
-                              else "May widen inequality")
+            interpretation = ("Strongly benefits low-income groups" if idx > 70
+                              else "Broadly equitable across incomes" if idx > 50
+                              else "Benefits concentrated in higher incomes" if idx > 25
+                              else "High-income skew — consider targeted subsidies")
             st.markdown(f"""
             <div class="dt-eq-box">
-                <div class="dt-eq-label">Equity Index</div>
+                <div class="dt-eq-label">Equity Index (higher = more pro-poor)</div>
                 <div class="dt-eq-value" style="color:{color}">{idx}/100</div>
                 <div class="dt-eq-note">{interpretation}</div>
             </div>""", unsafe_allow_html=True)
@@ -1400,6 +1485,29 @@ def render_results(results, llm_reports, policy_display):
             st.markdown("**⚠️ Top Concerns**")
             for c in sent.get("top_complaints",[]):
                 st.markdown(f"- {c}")
+
+    # ---- SOCIAL REACTIONS FEED ----
+    social_feed = llm_reports.get("social", "")
+    if social_feed:
+        st.divider()
+        st.subheader("📱 What Would Citizens Say?")
+        st.caption("AI-generated social media reactions from each archetype")
+        feed_lines = [l.strip() for l in social_feed.strip().split("\n") if l.strip()]
+        archetype_emojis = {
+            "School Student": "🎒", "Female Student": "👩‍🎓",
+            "Female Office Worker": "👩‍💼", "Male Office Worker": "👨‍💼",
+            "Auto Driver": "🛺", "Shop Owner": "🏪",
+            "Elderly Resident": "👴", "Delivery Worker": "📦",
+        }
+        feed_cols = st.columns(2)
+        for i, line in enumerate(feed_lines[:6]):
+            with feed_cols[i % 2]:
+                st.markdown(f"""
+                <div style="background:var(--card-bg);border:1px solid var(--card-border);
+                            border-radius:12px;padding:14px;margin-bottom:10px;font-size:14px;
+                            line-height:1.5;color:var(--text-primary)">
+                    {line}
+                </div>""", unsafe_allow_html=True)
 
     st.divider()
 
@@ -1472,7 +1580,15 @@ if run_btn:
             "Free Metro Rides For Women",
             "50% Bus Fare Reduction",
             "Congestion Tax",
-            "New Metro Line"
+            "New Metro Line",
+            "Metro Operating Hours Extended to 2 AM",
+            "Airport Express Fare Reduction",
+            "Reserved Student Coaches",
+            "Personal Carbon Budget",
+            "Free Transit Birthdays",
+            "Car-Free School Zones",
+            "One-Ticket City",
+            "Free EV Parking",
         ]
         all_results = []
         prog = st.progress(0, text="Running all simulations...")
@@ -1483,7 +1599,7 @@ if run_btn:
             all_results.append(r)
 
         prog.empty()
-        st.success("✅ All 4 Policy Simulations Complete")
+        st.success("✅ All 12 Policy Simulations Complete")
 
         # Comparison table
         st.subheader("📊 Policy Comparison Table")
@@ -1540,6 +1656,37 @@ if run_btn:
                 with col_b:
                     st.pyplot(plot_radar(r))
 
+    # ---- STACKED POLICIES ----
+    elif mode == "Stacked Policies":
+        policy_arg = json.dumps(stacked_policies)
+        policy_display = f"🔗 {stacked_policies[0]}  +  {stacked_policies[1]}"
+
+        st.info(f"**Stacking:** {stacked_policies[0]} **+** {stacked_policies[1]}")
+
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        try:
+            with open(os.path.join(app_dir, "enhanced_citizens.json")) as f:
+                citizens_base = json.load(f)
+        except Exception:
+            citizens_base = []
+
+        with st.spinner("Running stacked simulation..."):
+            results = run_simulation(policy_arg)
+
+        llm_reports = {}
+        if use_llm:
+            with st.spinner("🤖 Generating LLM agent reports..."):
+                for key in ["government","transport","environment","citizens","business","social"]:
+                    llm_reports[key] = get_llm_report(key, results)
+
+        citizens_after = results.get("citizens_after", [])
+        render_results(results, llm_reports, policy_display)
+
+        if citizens_after:
+            st.divider()
+            st.subheader("🧩 Archetypes Breakdown")
+            render_archetypes_tab(results, citizens_base, citizens_after)
+
     # ---- SINGLE POLICY ----
     else:
         # NLP parsing
@@ -1583,7 +1730,7 @@ if run_btn:
         llm_reports = {}
         if use_llm:
             with st.spinner("🤖 Generating LLM agent reports..."):
-                agent_keys = ["government","transport","environment","citizens","business"]
+                agent_keys = ["government","transport","environment","citizens","business","social"]
                 for key in agent_keys:
                     llm_reports[key] = get_llm_report(key, results)
 
