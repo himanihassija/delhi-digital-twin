@@ -16,21 +16,21 @@ Each citizen is a software agent with their own income, commute distance, home z
 
 | Feature | Description |
 |---|---|
-| **1,000 Citizens · 8 Archetypes** | School Student, Female Student, Female Office Worker, Male Office Worker, Auto Driver, Shop Owner, Elderly Resident, Delivery Worker |
+| **1,000 Citizens ·   8 Archetypes** | School Student, Female Student, Female Office Worker, Male Office Worker, Auto Driver, Shop Owner, Elderly Resident, Delivery Worker |
 | **12 Preset Policies** | Free Metro Rides For Women, 50% Bus Fare Reduction, Congestion Tax, New Metro Line, Metro 2AM, Airport Express Discount, Reserved Student Coaches, Personal Carbon Budget, Free Transit Birthdays, Car-Free School Zones, One-Ticket City, Free EV Parking |
 | **Policy Stacking** | Combine any two policies and simulate their compound effect — additive modifiers stack cleanly across all archetypes |
 | **Compare All 12** | Run all policies in one click and rank them by mobility, CO2, switches, satisfaction, and equity |
-| **LLM Analyst Agents** | Five Claude-powered agents (Government, Transport, Environment, Citizens, Business) each write independent policy briefs |
+| **LLM Analyst Agents** | Five Claude powered agents (Government, Transport, Environment, Citizens, Business) each write independent policy briefs |
 | **Social Reactions Feed** | Claude generates 6 Hinglish social media posts — one per archetype — reacting to the active policy |
 | **6-Month Adoption Curve** | Logistic ramp showing how ridership shifts gradually after policy launch, not just a single snapshot |
 | **Equity Analysis** | Tracks public transit adoption gains across low, middle, and high income brackets with a rebalanced equity index |
-| **Confidence Intervals** | 5-run Monte Carlo with randomised sensitivity scores to show result stability |
+| **Confidence Intervals** | 5 run Monte Carlo with randomised sensitivity scores to show result stability |
 | **Time-of-Day Simulation** | Morning Peak, Afternoon, and Evening Peak produce different adoption and CO2 profiles |
 | **Live Simulation Replay** | Watch all 1,000 citizen decisions stream in real time with a live bar chart |
 | **Animated Metro Map** | Metro animation scaled to actual ridership counts after simulation |
 | **Custom Citizen Builder** | Drop in any archetype, income, and commute distance and see their optimal transport choice |
 | **PDF Export** | Download a full policy report with metrics, transport tables, and all five agent reports |
-| **Natural Language Policy** | Describe a policy in plain English — Claude parses it into simulation parameters automatically |
+| **Natural Language Policy** | Describe a policy in plain English and Claude parses it into simulation parameters automatically |
 
 ---
 
