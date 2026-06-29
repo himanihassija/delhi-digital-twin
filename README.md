@@ -2,7 +2,7 @@
 
 **Agent-Based Urban Transport Policy Simulator**
 
-Simulate how 1,000 Delhi citizens independently decide their transport mode in response to any policy intervention — choose from 12 presets, stack two policies together, or describe your own in plain English and let Claude parse it into simulation parameters.
+Simulate how 1,000 Delhi citizens independently decide their transport mode in response to any policy intervention, choose from 12 presets, stack two policies together, or describe your own in plain English and let Claude parse it into simulation parameters.
 
 ---
 
